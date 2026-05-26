@@ -1,6 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { AlertCircle, Flame, Snowflake } from 'lucide-react'
+import { Flame, Snowflake, Wind, Volume, Volume1, Volume2, VolumeX } from 'lucide-react'
+
+import { ExperimentProvider, useExperiment } from './context/ExperimentContext'
+import OperatorConsole from './components/OperatorConsole'
 
 // === ASSET IMPORTS ===
 // Icons
@@ -17,8 +21,6 @@ import iconPhone from '../assets/icons/Icon-5.svg'       // phone
 import iconMusic from '../assets/icons/Icon-2.svg'       // music
 import iconMail from '../assets/icons/Icon-1.svg'        // mail
 import iconCalendar from '../assets/icons/Icon.svg'      // calendar
-import iconCouch from '../assets/icons/Icon-9.svg'       // seat / couch
-import iconTruck from '../assets/icons/Icon-10.svg'      // delivery / truck
 import iconMenu from '../assets/icons/Icon-13.svg'       // hamburger menu
 
 // Map vectors
@@ -34,7 +36,6 @@ import groupPin from '../assets/icons/Group 49.svg'       // map pin
 // Images
 import imgMap from '../assets/images/image 21.png'        // road/ADAS view (camera widget)
 import imgCar from '../assets/images/image 26.png'        // car side view
-import imgBriefing from '../assets/images/image 28.png'   // 상황브리핑 icon
 import imgMapSmall from '../assets/images/image 21-2.png' // mini map for camera
 
 import MusicApp from './components/MusicApp'
@@ -42,14 +43,17 @@ import BriefingPanel from './components/BriefingPanel'
 import MailApp from './components/MailApp'
 import PhoneApp from './components/PhoneApp'
 import CalendarApp from './components/CalendarApp'
+import NavigationApp from './components/NavigationApp'
 
-function App() {
+function VehicleHMI() {
+  const { activeScenario, hmiResetNonce } = useExperiment()
   const [activeTab, setActiveTab] = useState('Top view')
   const [activeApp, setActiveApp] = useState(null)
   const [isMusicFullscreen, setIsMusicFullscreen] = useState(false)
   const [isMailFullscreen, setIsMailFullscreen] = useState(false)
   const [isPhoneFullscreen, setIsPhoneFullscreen] = useState(false)
   const [isCalendarFullscreen, setIsCalendarFullscreen] = useState(false)
+  const [isNavigationFullscreen, setIsNavigationFullscreen] = useState(false)
   const [simStage, setSimStage] = useState('idle')
   const [simType, setSimType] = useState('roundabout')
   const [isBriefingOpen, setIsBriefingOpen] = useState(false)
@@ -57,6 +61,24 @@ function App() {
   const [isAutoClimate, setIsAutoClimate] = useState(true)
   const [currentSpeed, setCurrentSpeed] = useState(52)
   const [currentTime, setCurrentTime] = useState(new Date())
+  const [fanSpeed, setFanSpeed] = useState(3)
+  const [volume, setVolume] = useState(0.6)
+  const [muted, setMuted] = useState(false)
+  const [volumeOpen, setVolumeOpen] = useState(false)
+  const volumeCloseTimer = useRef(null)
+
+  const openVolume = () => {
+    setVolumeOpen(true)
+    if (volumeCloseTimer.current) clearTimeout(volumeCloseTimer.current)
+    volumeCloseTimer.current = setTimeout(() => setVolumeOpen(false), 3000)
+  }
+
+  const renderVolumeIcon = () => {
+    if (muted || volume === 0) return <VolumeX size={26} />
+    if (volume < 0.34) return <Volume size={26} />
+    if (volume < 0.67) return <Volume1 size={26} />
+    return <Volume2 size={26} />
+  }
 
   const cameraViews = ['Top view', 'Side View', 'Rear View']
 
@@ -85,6 +107,39 @@ function App() {
       console.warn('Audio play failed', e);
     }
   }
+
+  // ── Operator-driven scenario control (via ExperimentContext + BroadcastChannel) ──
+  // When operator picks a scenario from /operator (Alt+Q / Alt+W), it sets
+  // activeScenario here. We mirror that to the local simStage so the existing
+  // animations fire just like Ctrl+1 / Ctrl+2 would.
+  useEffect(() => {
+    if (!activeScenario) return
+    const id = activeScenario.scenarioId
+    if (id === 'frustration_roundabout_loop' && simStage === 'idle') {
+      setSimType('roundabout')
+      playChime()
+      setSimStage('attempting')
+    } else if (id === 'anxiety_hydroplaning' && simStage === 'idle') {
+      setSimType('aquaplaning')
+      playChime()
+      setIsBriefingOpen(true)
+      setSimStage('aquaplaning_active')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeScenario?.scenarioId])
+
+  // Operator-triggered HMI reset (BC.RESET_HMI / BC.INITIALIZE_HMI / END_TRIAL)
+  useEffect(() => {
+    if (hmiResetNonce === 0) return
+    setSimStage('idle')
+    setIsBriefingOpen(false)
+    setActiveApp(null)
+    setIsMusicFullscreen(false)
+    setIsMailFullscreen(false)
+    setIsPhoneFullscreen(false)
+    setIsCalendarFullscreen(false)
+    setIsNavigationFullscreen(false)
+  }, [hmiResetNonce])
 
   // Keyboard shortcut listener for Ctrl+1 and Ctrl+2
   useEffect(() => {
@@ -267,24 +322,25 @@ function App() {
   const alertConfig = getAlertConfig()
 
   return (
-    <div className="relative w-[1920px] h-[1080px] bg-[#f7f8fa] overflow-hidden rounded-[32px]"
-         style={{ fontFamily: "'Pretendard', sans-serif" }}>
+    <div className="hmi-viewport">
+      <div className="screen">
 
       <div className="absolute left-0 top-0 w-[421px] h-full bg-[rgba(247,248,250,0.3)]"
            style={{ boxShadow: '0px 6px 24px 0px rgba(0,0,0,0.09)' }} />
 
-      <div className="absolute left-0 top-0 w-[1920px] h-[79px] bg-white flex items-center justify-between px-[49px] z-30">
-        <div className="flex items-center gap-[24px]">
-          <span className="text-[21px] text-black leading-[30px] tabular-nums">{formatTime(currentTime)}</span>
-          <div className="flex items-center gap-[6px]">
-            <img src={iconSun} alt="" className="w-[24px] h-[24px]" />
-            <span className="text-[21px] text-black leading-[30px]">24°C</span>
+      {/* ── Top Status Bar ───────────────────────────────────── */}
+      <div className="top-bar">
+        <div className="top-bar-left">
+          <span className="time">{formatTime(currentTime)}</span>
+          <div className="weather">
+            <img src={iconSun} alt="" />
+            <span>24°C</span>
           </div>
         </div>
-        <div className="flex items-center gap-[18px]">
-          <img src={iconWifi} alt="" className="w-[24px] h-[24px]" />
-          <img src={iconBattery} alt="" className="w-[24px] h-[24px]" />
-          <span className="text-[21px] text-black leading-[30px]">100%</span>
+        <div className="top-bar-right">
+          <img src={iconWifi} alt="" />
+          <img src={iconBattery} alt="" />
+          <span className="battery-text">100%</span>
         </div>
       </div>
 
@@ -500,14 +556,25 @@ function App() {
           />
         )}
         {activeApp === 'Calendar' && (
-          <CalendarApp 
-            isFullscreen={isCalendarFullscreen} 
+          <CalendarApp
+            isFullscreen={isCalendarFullscreen}
             setIsFullscreen={setIsCalendarFullscreen}
             isBriefingOpen={isBriefingOpen}
             onClose={() => {
               setActiveApp(null)
               setIsCalendarFullscreen(false)
-            }} 
+            }}
+          />
+        )}
+        {activeApp === 'Navigation' && (
+          <NavigationApp
+            isFullscreen={isNavigationFullscreen}
+            setIsFullscreen={setIsNavigationFullscreen}
+            isBriefingOpen={isBriefingOpen}
+            onClose={() => {
+              setActiveApp(null)
+              setIsNavigationFullscreen(false)
+            }}
           />
         )}
       </AnimatePresence>
@@ -524,101 +591,176 @@ function App() {
         )}
       </AnimatePresence>
 
-      <div className="absolute left-0 bottom-0 w-[1920px] h-[121px] flex items-center justify-between px-[49px] z-30"
-           style={{ background: 'linear-gradient(90deg, #fff 0%, #edeef2 100%)' }}>
-        <div className="flex items-center gap-[18px]">
+      {/* ── Bottom App Bar ────────────────────────────────────── */}
+      <div className="bottom-bar">
+        {/* Left: Home, Climate, Fan */}
+        <div className="bottom-left">
           <motion.button
             whileTap={{ scale: 0.92 }}
-            className="w-[73px] h-[73px] rounded-[21px] flex items-center justify-center"
+            className="btn-home"
+            onClick={() => {
+              setActiveApp(null)
+              setIsMusicFullscreen(false)
+              setIsMailFullscreen(false)
+              setIsPhoneFullscreen(false)
+              setIsCalendarFullscreen(false)
+              setIsNavigationFullscreen(false)
+              setIsBriefingOpen(false)
+            }}
           >
-            <img src={iconHome} alt="" className="w-[36px] h-[36px]" />
+            <img src={iconHome} alt="Home" />
           </motion.button>
 
-          <motion.button whileTap={{ scale: 0.92 }}
-            onClick={() => { setTemperature(prev => Math.max(17, prev - 1)); setIsAutoClimate(false) }}
-            className="w-[55px] h-[55px] rounded-[21px] flex items-center justify-center">
-            <img src={iconChevronDown} alt="" className="w-[30px] h-[30px]" />
+          <motion.button
+            whileTap={{ scale: 0.92 }}
+            className="btn-chevron"
+            onClick={() => { setTemperature(v => Math.max(17, v - 1)); setIsAutoClimate(false) }}
+          >
+            <img src={iconChevronDown} alt="Temp down" />
           </motion.button>
 
-          <div className="flex flex-col items-center px-[12px]">
-            <span className={`text-[36px] font-semibold leading-[49px] transition-colors duration-300 ${isAutoClimate ? 'text-[#a0a0a5]' : temperature <= 22 ? 'text-[#4A90D9]' : 'text-[#E85D5D]'}`}>{temperature}.0</span>
-            <button onClick={() => setIsAutoClimate(true)} className="flex items-center gap-[6px] hover:opacity-70 transition-opacity">
+          <div className="climate-display">
+            <span className={`climate-temp ${!isAutoClimate ? (temperature <= 22 ? 'cool' : 'heat') : ''}`}>
+              {temperature}.0
+            </span>
+            <button
+              className="climate-mode"
+              onClick={() => setIsAutoClimate(true)}
+            >
               {isAutoClimate ? (
-                <img src={iconAC} alt="" className="w-[18px] h-[18px] opacity-60" />
+                <img src={iconAC} alt="" />
               ) : temperature <= 22 ? (
-                <Snowflake size={18} className="text-[#4A90D9]" />
+                <Snowflake size={18} color="#4A90D9" />
               ) : (
-                <Flame size={18} className="text-[#E85D5D]" />
+                <Flame size={18} color="#E85D5D" />
               )}
-              <span className={`text-[18px] leading-[24px] transition-colors duration-300 ${isAutoClimate ? 'text-[#99a1af]' : temperature <= 22 ? 'text-[#4A90D9]' : 'text-[#E85D5D]'}`}>
+              <span className={!isAutoClimate ? (temperature <= 22 ? 'cool' : 'heat') : ''}>
                 {isAutoClimate ? 'AUTO' : temperature <= 22 ? 'COOL' : 'HEAT'}
               </span>
             </button>
           </div>
 
-          <motion.button whileTap={{ scale: 0.92 }}
-            onClick={() => { setTemperature(prev => Math.min(29, prev + 1)); setIsAutoClimate(false) }}
-            className="w-[55px] h-[55px] rounded-[21px] flex items-center justify-center">
-            <img src={iconChevronUp} alt="" className="w-[30px] h-[30px]" />
+          <motion.button
+            whileTap={{ scale: 0.92 }}
+            className="btn-chevron"
+            onClick={() => { setTemperature(v => Math.min(29, v + 1)); setIsAutoClimate(false) }}
+          >
+            <img src={iconChevronUp} alt="Temp up" />
           </motion.button>
 
-          <motion.button whileTap={{ scale: 0.92 }}
-            className="w-[67px] h-[67px] rounded-[21px] flex items-center justify-center">
-            <img src={iconCouch} alt="" className="w-[30px] h-[30px]" />
-          </motion.button>
-
-          <motion.button whileTap={{ scale: 0.92 }}
-            className="w-[67px] h-[67px] rounded-[21px] flex items-center justify-center">
-            <img src={iconTruck} alt="" className="w-[30px] h-[30px]" />
-          </motion.button>
+          {/* Fan speed indicator */}
+          <button
+            className="fan-display"
+            title={`바람 세기 ${fanSpeed}/5`}
+            onClick={() => setFanSpeed(prev => (prev % 5) + 1)}
+            style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}
+          >
+            <Wind size={22} color={fanSpeed >= 4 ? '#4A90D9' : 'var(--text-secondary)'} />
+            <div className="fan-dots">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <span
+                  key={i}
+                  className="fan-dot"
+                  style={{ background: i <= fanSpeed ? '#4A90D9' : 'rgba(140,144,168,0.28)' }}
+                />
+              ))}
+            </div>
+          </button>
         </div>
 
-        <div className="flex items-center gap-[18px]">
+        {/* Center: App Icons (5 apps) */}
+        <div className="bottom-center">
           {[
-            { id: 'Navigation', icon: iconSend, label: 'Navigation' },
-            { id: 'Phone', icon: iconPhone, label: 'Phone' },
-            { id: 'Music', icon: iconMusic, label: 'Music' },
-            { id: 'Mail', icon: iconMail, label: 'Mail' },
-            { id: 'Calendar', icon: iconCalendar, label: 'Calendar' },
-          ].map((item, i) => (
+            { id: 'Navigation', icon: iconSend },
+            { id: 'Phone', icon: iconPhone },
+            { id: 'Music', icon: iconMusic },
+            { id: 'Mail', icon: iconMail },
+            { id: 'Calendar', icon: iconCalendar },
+          ].map((item) => (
             <motion.button
-              key={i}
+              key={item.id}
               whileTap={{ scale: 0.9 }}
-              onClick={() => {
-                if (item.id === 'Music' || item.id === 'Mail' || item.id === 'Phone' || item.id === 'Calendar') {
-                  setActiveApp(prev => prev === item.id ? null : item.id)
-                }
-              }}
-              className={`w-[73px] h-[73px] border border-[rgba(19,20,23,0.2)] rounded-full flex items-center justify-center transition-colors ${
-                activeApp === item.id ? 'bg-white shadow-[inset_0px_2px_4px_rgba(0,0,0,0.05)]' : 'bg-[#f7f8fa]'
-              }`}
-              style={{ filter: 'drop-shadow(0px 6px 12px rgba(0,0,0,0.08))' }}
+              onClick={() => setActiveApp(prev => prev === item.id ? null : item.id)}
+              className={`app-icon-btn ${activeApp === item.id ? 'active' : ''}`}
             >
-              <img src={item.icon} alt={item.label} className="w-[30px] h-[30px]" />
+              <img src={item.icon} alt={item.id} />
             </motion.button>
           ))}
         </div>
 
-        <div className="flex items-center gap-[18px]">
+        {/* Right: Volume, Menu */}
+        <div className="bottom-right">
+          <div className="volume-control" title={`볼륨 ${Math.round((muted ? 0 : volume) * 100)}%`}>
+            <motion.div
+              initial={false}
+              animate={{ width: volumeOpen ? 160 : 0, opacity: volumeOpen ? 1 : 0 }}
+              transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+              style={{ overflow: 'hidden' }}
+            >
+              <div
+                className="volume-bar"
+                role="slider"
+                aria-label="시스템 볼륨"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round((muted ? 0 : volume) * 100)}
+                onClick={(e) => {
+                  const r = e.currentTarget.getBoundingClientRect()
+                  const ratio = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width))
+                  setVolume(ratio)
+                  if (muted && ratio > 0) setMuted(false)
+                  openVolume()
+                }}
+              >
+                <div
+                  className="volume-fill"
+                  style={{ width: `${(muted ? 0 : volume) * 100}%` }}
+                />
+              </div>
+            </motion.div>
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              className="volume-icon-btn"
+              onClick={() => {
+                if (!volumeOpen) { openVolume(); return }
+                setMuted(m => !m)
+                openVolume()
+              }}
+              aria-label={volumeOpen ? (muted ? '음소거 해제' : '음소거') : '음량 조절'}
+            >
+              {renderVolumeIcon()}
+            </motion.button>
+          </div>
           <motion.button
             whileTap={{ scale: 0.92 }}
-            onClick={() => setIsBriefingOpen(prev => !prev)}
-            className={`flex flex-col items-center cursor-pointer transition-opacity ${isBriefingOpen ? 'opacity-100' : 'opacity-70 hover:opacity-100'}`}
+            className="btn-menu"
           >
-            <div className="w-[61px] h-[57px] relative">
-              <img src={imgBriefing} alt="" className="w-full h-full object-contain" />
-            </div>
-            <span className="text-[12px] font-semibold text-[#a0a0a5] leading-[15px] mt-[3px]">상황브리핑</span>
-          </motion.button>
-          <motion.button
-            whileTap={{ scale: 0.92 }}
-            className="w-[51px] h-[51px] rounded-[16px] flex items-center justify-center bg-[#f7f8fa] border border-[rgba(19,20,23,0.1)]"
-          >
-            <img src={iconMenu} alt="" className="w-[24px] h-[24px]" />
+            <img src={iconMenu} alt="Menu" />
           </motion.button>
         </div>
       </div>
+      </div>
     </div>
+  )
+}
+
+// ── App shell: router + experiment provider ───────────────────
+// /              → participant-facing vehicle HMI
+// /operator      → researcher operator console (drives scenarios, logs sessions)
+// /operator opens cleanly in a separate window/tab; both windows sync via
+// BroadcastChannel inside ExperimentContext.
+function App() {
+  return (
+    <BrowserRouter>
+      <ExperimentProvider>
+        <Routes>
+          <Route path="/" element={<VehicleHMI />} />
+          <Route path="/hmi" element={<VehicleHMI />} />
+          <Route path="/operator" element={<OperatorConsole />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </ExperimentProvider>
+    </BrowserRouter>
   )
 }
 

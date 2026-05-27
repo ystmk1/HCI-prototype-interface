@@ -350,8 +350,8 @@ function VehicleHMI() {
         transition={{ duration: 0.5, ease: "easeInOut" }}
         className="absolute inset-0 z-20 pointer-events-none"
       >
-        {/* Top Destination Widget — Figma: left-33 top-122 w-406 */}
-        <div className="pointer-events-auto absolute bg-gradient-to-r border border-[rgba(19,20,23,0.1)] border-solid drop-shadow-[0px_6px_12px_rgba(0,0,0,0.08)] flex flex-col from-white gap-[12px] items-center left-[33px] p-[32px] rounded-[32px] to-[#edeef2] top-[122px] w-[406px]">
+        {/* Top Destination Widget — Figma node 244:23491 (left-33 top-122 w-406) */}
+        <div className="pointer-events-auto absolute bg-gradient-to-r from-white to-[#edeef2] border border-[rgba(19,20,23,0.1)] drop-shadow-[0px_6px_12px_rgba(0,0,0,0.08)] flex flex-col gap-[12px] items-center left-[33px] p-[32px] rounded-[32px] top-[122px] w-[406px]">
           {(() => {
             const hasRoute = !!activeRoute
             const destName = hasRoute ? activeRoute.destination.name : '어디로 갈까요?'
@@ -363,28 +363,33 @@ function VehicleHMI() {
 
             return (
               <>
-                <div className="[word-break:break-word] content-stretch flex flex-col font-['Pretendard:Medium',sans-serif] items-start leading-[1.4] not-italic relative shrink-0 w-[294px]">
-                  <p className="relative shrink-0 text-[#99a1af] text-[22px] w-full">
+                {/* Top text block — Figma: font-Medium, items-start, leading-1.4 */}
+                <div className="flex flex-col items-start leading-[1.4] w-[294px]">
+                  <p className="font-medium text-[#99a1af] text-[22px] w-full">
                     {labelText}
                   </p>
-                  <p className={`relative shrink-0 text-[26px] tracking-[-1px] w-full truncate ${hasRoute ? 'text-[#131417]' : 'text-[#131417]'}`}>
+                  <p className="font-medium text-[#131417] text-[26px] tracking-[-1px] w-full truncate">
                     {destName}
                   </p>
                 </div>
+
+                {/* Route + ETA — Figma uses absolute positioning inside w-294 h-64 */}
                 {hasRoute && (
-                  <div className="flex items-center relative shrink-0 w-[294px] mt-[16px] gap-[36px]">
-                    <div className="relative w-[106px] h-[66px] shrink-0">
+                  <div className="relative h-[64px] w-[294px]">
+                    {/* Route SVG at left-13.5 top-0 (h-66 overflows container slightly) */}
+                    <div className="absolute h-[66px] left-[13.5px] top-0 w-[106px]">
                       <svg width="100%" height="100%" viewBox="0 0 106 66" preserveAspectRatio="xMidYMid meet">
                         <path d={buildRouteSvg(activeRoute.geometry, 106, 66, 8).d} stroke="#2d7cf1" strokeWidth={3} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={0.95} />
                       </svg>
                     </div>
-                    <div className="flex flex-col items-start relative shrink-0">
-                      <p className="font-['Pretendard:Regular',sans-serif] leading-[1.3] text-[#99a1af] text-[22px] tracking-[-0.44px]">
+                    {/* ETA group at left-166 */}
+                    <div className="absolute left-[166px] top-0">
+                      <p className="font-normal leading-[1.32] text-[#99a1af] text-[22px]">
                         도착예정
                       </p>
-                      <div className="flex items-baseline gap-[6px] mt-[6px]">
-                        <span className="font-['Pretendard:SemiBold',sans-serif] text-[34px] tracking-[-0.85px] text-[#131417] leading-[1.1]">{timeOnly}</span>
-                        <span className="font-['Pretendard:Regular',sans-serif] text-[22px] tracking-[-0.44px] text-[#99a1af] leading-[1.1]">{ampm}</span>
+                      <div className="mt-[8px] flex items-baseline gap-[4px] whitespace-nowrap">
+                        <span className="font-semibold text-[34px] tracking-[-0.68px] text-[#131417]">{timeOnly}</span>
+                        <span className="font-normal text-[22px] tracking-[-0.44px] text-[#99a1af]">{ampm}</span>
                       </div>
                     </div>
                   </div>
@@ -394,14 +399,16 @@ function VehicleHMI() {
           })()}
         </div>
 
-        {/* Bottom Speed & ADAS Widget — Figma: left-31 top-359 w-408 */}
-        <div className="pointer-events-auto absolute bg-gradient-to-r border border-[rgba(19,20,23,0.1)] border-solid drop-shadow-[0px_6px_12px_rgba(0,0,0,0.08)] flex flex-col from-white gap-[28px] items-start left-[31px] p-[32px] rounded-[32px] to-[#edeef2] top-[359px] w-[408px]">
+        {/* Bottom Speed & ADAS Widget — Figma: left-31 top-359 w-408
+            ADAS h reduced from 260 → 200 so the hydroplaning warning card
+            no longer overflows the 121px-tall GNB at the screen bottom. */}
+        <div className="pointer-events-auto absolute bg-gradient-to-r from-white to-[#edeef2] border border-[rgba(19,20,23,0.1)] drop-shadow-[0px_6px_12px_rgba(0,0,0,0.08)] flex flex-col gap-[24px] items-start left-[31px] p-[32px] rounded-[32px] top-[359px] w-[408px]">
           <div className="flex items-baseline shrink-0">
-            <span className="font-['Pretendard:Medium',sans-serif] leading-[1.1] text-[#131417] text-[66px] tracking-[-1.6px]">{currentSpeed}</span>
-            <span className="font-['Pretendard:Regular',sans-serif] leading-[37px] ml-[8px] text-[#99a1af] text-[22px]">km/h</span>
+            <span className="font-medium leading-[1.1] text-[#131417] text-[66px] tracking-[-1.6px]">{currentSpeed}</span>
+            <span className="font-normal leading-[37px] ml-[8px] text-[#99a1af] text-[22px]">km/h</span>
           </div>
-          <div className="flex flex-col gap-[22px] items-start relative shrink-0 w-full">
-            <div className="h-[260px] opacity-80 relative shrink-0 w-full overflow-hidden rounded-[16px]">
+          <div className="flex flex-col gap-[20px] items-start relative shrink-0 w-full">
+            <div className="h-[200px] opacity-80 relative shrink-0 w-full overflow-hidden rounded-[16px]">
               <img alt="" className="absolute inset-0 max-w-none object-cover pointer-events-none size-full" src={imgMap} />
             </div>
 
@@ -409,10 +416,10 @@ function VehicleHMI() {
               {simType === 'roundabout' && simStage !== 'idle' && (
                 <motion.div
                   key="slider"
-                  initial={{ opacity: 0, y: 16, height: 0 }}
+                  initial={{ opacity: 0, y: 12, height: 0 }}
                   animate={{ opacity: 1, y: 0, height: 63 }}
-                  exit={{ opacity: 0, y: 16, height: 0 }}
-                  transition={{ delay: 1.2, duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+                  exit={{ opacity: 0, y: 12, height: 0 }}
+                  transition={{ delay: 0.4, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
                   className="w-full shrink-0"
                 >
                   <SwipeSlider onApprove={handleApproveDetour} />
@@ -421,32 +428,32 @@ function VehicleHMI() {
               {simType === 'aquaplaning' && simStage !== 'idle' && (
                 <motion.div
                   key="aquaplaning"
-                  initial={{ opacity: 0, y: 16, height: 0 }}
-                  animate={{ opacity: 1, y: 0, height: 161 }}
-                  exit={{ opacity: 0, y: 16, height: 0 }}
-                  transition={{ delay: 1.2, duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+                  initial={{ opacity: 0, y: 12, height: 0 }}
+                  animate={{ opacity: 1, y: 0, height: 'auto' }}
+                  exit={{ opacity: 0, y: 12, height: 0 }}
+                  transition={{ delay: 0.4, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
                   className="w-full shrink-0 overflow-hidden"
                 >
-                  <div className="bg-white border border-[rgba(19,20,23,0.05)] border-solid content-stretch drop-shadow-[0px_12px_6px_rgba(0,0,0,0.11)] flex flex-col gap-[25px] items-start p-[32px] relative rounded-[20px] shrink-0 w-full">
-                    <div className="[word-break:break-word] content-stretch flex flex-col gap-[5px] items-start leading-[0] not-italic relative shrink-0 whitespace-nowrap">
-                      <div className="font-['Pretendard:Regular',sans-serif] relative shrink-0 text-[#131417] text-[0px] tracking-[-0.52px]">
-                        <p className="leading-[1.3] mb-0 text-[26px]">안전 확보를 위해</p>
-                        <p className="text-[26px]">
-                          <span className="[word-break:break-word] font-['Pretendard:Bold',sans-serif] leading-[1.3] not-italic text-[#131417] tracking-[-0.52px]">80km/h</span>
-                          <span className="leading-[1.3]">로 감속</span>
+                  <div className="bg-white border border-[rgba(19,20,23,0.05)] drop-shadow-[0px_12px_6px_rgba(0,0,0,0.11)] flex flex-col gap-[18px] items-start p-[24px] relative rounded-[20px] shrink-0 w-full">
+                    <div className="flex flex-col gap-[6px] items-start whitespace-nowrap">
+                      <div className="text-[#131417] tracking-[-0.52px]">
+                        <p className="font-normal leading-[1.3] mb-0 text-[24px]">안전 확보를 위해</p>
+                        <p className="text-[24px] leading-[1.3]">
+                          <span className="font-bold tracking-[-0.48px]">80km/h</span>
+                          <span className="font-normal">로 감속</span>
                         </p>
                       </div>
-                      <p className="font-['Pretendard:Medium',sans-serif] relative shrink-0 text-[#99a1af] text-[18px] tracking-[-0.36px]">
-                        <span className="leading-[24.666px] tracking-[-0.32px]">약 </span>
-                        <span className="leading-[24.666px] text-[#2d7cf1] tracking-[-0.32px]">3초간 감속</span>
-                        <span className="leading-[24.666px] tracking-[-0.32px]">을 유지합니다.</span>
+                      <p className="font-medium text-[#99a1af] text-[16px] tracking-[-0.32px] leading-[1.4]">
+                        <span>약 </span>
+                        <span className="text-[#2d7cf1]">3초간 감속</span>
+                        <span>을 유지합니다.</span>
                       </p>
                     </div>
-                    <div className="relative shrink-0 w-[278px] h-[8px] bg-[#f0f0f0] rounded-full overflow-hidden">
+                    <div className="relative w-full h-[8px] bg-[#f0f0f0] rounded-full overflow-hidden">
                       <motion.div
                         initial={{ width: '100%' }}
                         animate={{ width: '0%' }}
-                        transition={{ delay: 1.75, duration: 3, ease: 'linear' }}
+                        transition={{ delay: 0.95, duration: 3, ease: 'linear' }}
                         className="absolute top-0 left-0 h-full bg-[#2d7cf1] rounded-full"
                       />
                     </div>
@@ -458,21 +465,57 @@ function VehicleHMI() {
         </div>
       </motion.div>
 
+      {/* ── Top-edge ambient shimmer (replaces the center alert pill).
+          Voice-animation-style gradient at the very top of the screen,
+          color shifts per simStage, gentle wavering motion. */}
       <AnimatePresence>
         {alertConfig && (
-          <motion.div 
-            initial={{ opacity: 0, y: -20, x: '-50%' }}
-            animate={{ opacity: 1, y: 0, x: '-50%' }}
-            exit={{ opacity: 0, y: -20, x: '-50%' }}
-            className="absolute left-1/2 top-[100px] z-50 bg-white/90 backdrop-blur-md px-[24px] py-[12px] rounded-full shadow-2xl flex items-center gap-[12px] border border-white/50"
+          <motion.div
+            key="top-shimmer"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.6, ease: 'easeOut' }}
+            className="absolute top-0 left-0 right-0 h-[140px] z-[60] pointer-events-none overflow-hidden"
           >
-            <motion.div 
-              animate={alertConfig.dotAnimate}
-              transition={alertConfig.dotTransition}
-              className="w-[12px] h-[12px] rounded-full"
-              style={{ backgroundColor: alertConfig.dotColor }}
+            {/* Base color veil — strongest at the very top edge, fades to nothing */}
+            <div
+              className="absolute inset-0"
+              style={{
+                background: `linear-gradient(180deg, ${alertConfig.dotColor} 0%, ${alertConfig.dotColor}55 35%, ${alertConfig.dotColor}00 100%)`,
+                opacity: 0.55,
+              }}
             />
-            <span className="text-[18px] font-bold text-[#131417]">{alertConfig.text}</span>
+            {/* Wave 1 — slow horizontal drift, radial blob */}
+            <motion.div
+              className="absolute -inset-x-[10%] -top-[30%] h-[200%]"
+              style={{
+                background: `radial-gradient(ellipse 50% 50% at 30% 30%, ${alertConfig.dotColor}aa 0%, transparent 60%)`,
+                mixBlendMode: 'screen',
+              }}
+              animate={{ x: ['-6%', '6%', '-6%'], opacity: [0.55, 0.85, 0.55] }}
+              transition={{ duration: 5.5, repeat: Infinity, ease: 'easeInOut' }}
+            />
+            {/* Wave 2 — opposite phase, brighter highlight */}
+            <motion.div
+              className="absolute -inset-x-[10%] -top-[20%] h-[180%]"
+              style={{
+                background: `radial-gradient(ellipse 40% 50% at 70% 25%, ${alertConfig.dotColor}cc 0%, transparent 55%)`,
+                mixBlendMode: 'screen',
+              }}
+              animate={{ x: ['5%', '-5%', '5%'], opacity: [0.4, 0.75, 0.4] }}
+              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 0.8 }}
+            />
+            {/* Wave 3 — subtle wide sweep */}
+            <motion.div
+              className="absolute inset-0"
+              style={{
+                background: `linear-gradient(90deg, transparent 0%, ${alertConfig.dotColor}33 50%, transparent 100%)`,
+                mixBlendMode: 'screen',
+              }}
+              animate={{ x: ['-20%', '20%', '-20%'] }}
+              transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}
+            />
           </motion.div>
         )}
       </AnimatePresence>

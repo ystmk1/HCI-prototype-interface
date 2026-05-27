@@ -1,18 +1,17 @@
 import { useState, useEffect, useRef } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Flame, Snowflake, Wind, Volume, Volume1, Volume2, VolumeX } from 'lucide-react'
 
 import { ExperimentProvider, useExperiment } from './context/ExperimentContext'
 import OperatorConsole from './components/OperatorConsole'
-import { buildRouteSvg, formatDuration, formatDistance, formatClockTime } from './utils/kakaoNav'
+import { buildRouteSvg, formatClockTime } from './utils/kakaoNav'
 
 // === ASSET IMPORTS ===
 // Icons
 import iconSun from '../assets/icons/Icon-15.svg'       // sun / weather
 import iconWifi from '../assets/icons/Icon-14.svg'       // wifi
 import iconBattery from '../assets/icons/Icon-12.svg'    // battery
-import iconNav from '../assets/icons/Icon-11.svg'        // nav arrow (blue, destination)
 import iconHome from '../assets/icons/Icon-8.svg'        // home
 import iconChevronDown from '../assets/icons/Icon-7.svg' // chevron down
 import iconChevronUp from '../assets/icons/Icon-4.svg'   // chevron up
@@ -26,8 +25,6 @@ import iconMenu from '../assets/icons/Icon-13.svg'       // hamburger menu
 
 // Images
 import imgMap from '../assets/images/image 21.png'        // road/ADAS view (camera widget)
-import imgCar from '../assets/images/image 26.png'        // car side view
-import imgMapSmall from '../assets/images/image 21-2.png' // mini map for camera
 
 import MusicApp from './components/MusicApp'
 import SwipeSlider from './components/SwipeSlider'
@@ -35,10 +32,10 @@ import MailApp from './components/MailApp'
 import PhoneApp from './components/PhoneApp'
 import CalendarApp from './components/CalendarApp'
 import NavigationApp from './components/NavigationApp'
+import ControlPanel from './components/ControlPanel'
 
 function VehicleHMI() {
   const { activeScenario, hmiResetNonce } = useExperiment()
-  const [activeTab, setActiveTab] = useState('Top view')
   const [activeApp, setActiveApp] = useState(null)
   const [isMusicFullscreen, setIsMusicFullscreen] = useState(false)
   const [isMailFullscreen, setIsMailFullscreen] = useState(false)
@@ -57,6 +54,7 @@ function VehicleHMI() {
   const [muted, setMuted] = useState(false)
   const [volumeOpen, setVolumeOpen] = useState(false)
   const volumeCloseTimer = useRef(null)
+  const [isControlPanelOpen, setIsControlPanelOpen] = useState(false)
   // activeRoute is set by NavigationApp after the user confirms a destination.
   // The left widget mirrors it; null means "no destination yet".
   const [activeRoute, setActiveRoute] = useState(null)
@@ -81,8 +79,6 @@ function VehicleHMI() {
     if (volume < 0.67) return <Volume1 size={26} />
     return <Volume2 size={26} />
   }
-
-  const cameraViews = ['Top view', 'Side View', 'Rear View']
 
   // Airplane seatbelt chime sound
   const playChime = () => {
@@ -143,10 +139,12 @@ function VehicleHMI() {
     setIsNavigationFullscreen(false)
   }, [hmiResetNonce])
 
-  // Keyboard shortcut listener for Ctrl+1 and Ctrl+2
+  // Keyboard shortcuts: Alt+Q (roundabout) / Alt+W (hydroplaning)
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.ctrlKey && e.key === '1') {
+      if (!e.altKey) return
+      const k = e.key.toLowerCase()
+      if (k === 'q') {
         e.preventDefault()
         setSimType('roundabout')
         setSimStage(prev => {
@@ -156,7 +154,7 @@ function VehicleHMI() {
           }
           return 'idle'
         })
-      } else if (e.ctrlKey && e.key === '2') {
+      } else if (k === 'w') {
         e.preventDefault()
         setSimType('aquaplaning')
         setSimStage(prev => {
@@ -246,11 +244,6 @@ function VehicleHMI() {
     setIsBriefingOpen(false)
   }
 
-  const handleWaitAndRetry = () => {
-    setSimStage('waiting')
-    setIsBriefingOpen(false)
-  }
-
   const getAlertConfig = () => {
     switch (simStage) {
       case 'searching':
@@ -327,7 +320,7 @@ function VehicleHMI() {
     <div className="hmi-viewport">
       <div className="screen">
 
-      <div className="absolute left-0 top-0 w-[421px] h-full bg-[rgba(247,248,250,0.3)]"
+      <div className="absolute left-0 top-0 w-[480px] h-full bg-[rgba(247,248,250,0.3)]"
            style={{ boxShadow: '0px 6px 24px 0px rgba(0,0,0,0.09)' }} />
 
       {/* ── Top Status Bar ───────────────────────────────────── */}
@@ -360,12 +353,10 @@ function VehicleHMI() {
         {/* Top Destination Widget — Figma: left-33 top-122 w-406 */}
         <div className="pointer-events-auto absolute bg-gradient-to-r border border-[rgba(19,20,23,0.1)] border-solid drop-shadow-[0px_6px_12px_rgba(0,0,0,0.08)] flex flex-col from-white gap-[12px] items-center left-[33px] p-[32px] rounded-[32px] to-[#edeef2] top-[122px] w-[406px]">
           {(() => {
-            let destName = '홍익대학교 서울캠퍼스'
-            let arrivalText = '10:12 PM'
-            if (activeRoute) {
-              destName = activeRoute.destination.name
-              arrivalText = formatClockTime(new Date(activeRoute.baseArrivalIso))
-            }
+            const hasRoute = !!activeRoute
+            const destName = hasRoute ? activeRoute.destination.name : '어디로 갈까요?'
+            const labelText = hasRoute ? '목적지' : '반갑습니다'
+            const arrivalText = hasRoute ? formatClockTime(new Date(activeRoute.baseArrivalIso)) : '10:12 PM'
             const timeParts = arrivalText.split(' ')
             const timeOnly = timeParts[0] || '10:12'
             const ampm = timeParts[1] || 'PM'
@@ -374,46 +365,39 @@ function VehicleHMI() {
               <>
                 <div className="[word-break:break-word] content-stretch flex flex-col font-['Pretendard:Medium',sans-serif] items-start leading-[1.4] not-italic relative shrink-0 w-[294px]">
                   <p className="relative shrink-0 text-[#99a1af] text-[22px] w-full">
-                    목적지
+                    {labelText}
                   </p>
-                  <p className="relative shrink-0 text-[#131417] text-[26px] tracking-[-1px] w-full truncate">
+                  <p className={`relative shrink-0 text-[26px] tracking-[-1px] w-full truncate ${hasRoute ? 'text-[#131417]' : 'text-[#131417]'}`}>
                     {destName}
                   </p>
                 </div>
-                <div className="flex h-[64px] items-start relative shrink-0 w-[294px] mt-[12px]">
-                  <div className="relative w-[106px] h-[66px] ml-[13.5px]">
-                    {activeRoute ? (
+                {hasRoute && (
+                  <div className="flex items-center relative shrink-0 w-[294px] mt-[16px] gap-[36px]">
+                    <div className="relative w-[106px] h-[66px] shrink-0">
                       <svg width="100%" height="100%" viewBox="0 0 106 66" preserveAspectRatio="xMidYMid meet">
                         <path d={buildRouteSvg(activeRoute.geometry, 106, 66, 8).d} stroke="#2d7cf1" strokeWidth={3} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={0.95} />
                       </svg>
-                    ) : (
-                      <svg width="106" height="67" viewBox="0 0 106 67" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M4 14.5C11.5 14.5 15.5 12.5 17 9.5C21.5 0.499998 32.5 5 36 9.5C39.5 14 43 18.5 49.5 18.5C56 18.5 61 14 66 11.5C71 9 76 3 83.5 3.49999C91 3.99999 101.5 12.5 97.5 28C93.5 43.5 83.5 42 79.5 44.5C75.5 47 69 49 66 49C63 49 54.5 51.5 53 54C51.5 56.5 48.5 60.5 44 60C39.5 59.5 35 59.5 29 60.5" stroke="#2D7CF1" strokeWidth="3" strokeLinecap="round"/>
-                        <path d="M29 60.5C25.4 61.1 19.3333 60.3333 16 59.5" stroke="#2D7CF1" strokeWidth="3" strokeLinecap="round" strokeDasharray="3 4"/>
-                        <circle cx="4" cy="14" r="3" fill="white" stroke="#2D7CF1" strokeWidth="2"/>
-                        <circle cx="15.5" cy="59.5" r="2.5" fill="white" stroke="#2D7CF1" strokeWidth="1"/>
-                      </svg>
-                    )}
-                  </div>
-                  <div className="flex flex-col items-start relative w-[114px] ml-[46px]">
-                    <p className="font-['Pretendard:Regular',sans-serif] leading-[29px] text-[#99a1af] text-[22px]">
-                      도착예정
-                    </p>
-                    <div className="flex items-baseline gap-[4px] mt-[5px]">
-                      <span className="font-['Pretendard:SemiBold',sans-serif] text-[34px] tracking-[-0.68px] text-[#131417] leading-[29px]">{timeOnly}</span>
-                      <span className="font-['Pretendard:Regular',sans-serif] text-[22px] tracking-[-0.44px] text-[#99a1af] leading-[29px]">{ampm}</span>
+                    </div>
+                    <div className="flex flex-col items-start relative shrink-0">
+                      <p className="font-['Pretendard:Regular',sans-serif] leading-[1.3] text-[#99a1af] text-[22px] tracking-[-0.44px]">
+                        도착예정
+                      </p>
+                      <div className="flex items-baseline gap-[6px] mt-[6px]">
+                        <span className="font-['Pretendard:SemiBold',sans-serif] text-[34px] tracking-[-0.85px] text-[#131417] leading-[1.1]">{timeOnly}</span>
+                        <span className="font-['Pretendard:Regular',sans-serif] text-[22px] tracking-[-0.44px] text-[#99a1af] leading-[1.1]">{ampm}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </>
             )
           })()}
         </div>
 
         {/* Bottom Speed & ADAS Widget — Figma: left-31 top-359 w-408 */}
-        <div className="pointer-events-auto absolute bg-gradient-to-r border border-[rgba(19,20,23,0.1)] border-solid drop-shadow-[0px_6px_12px_rgba(0,0,0,0.08)] flex flex-col from-white gap-[10px] items-start left-[31px] p-[32px] rounded-[32px] to-[#edeef2] top-[359px] w-[408px]">
+        <div className="pointer-events-auto absolute bg-gradient-to-r border border-[rgba(19,20,23,0.1)] border-solid drop-shadow-[0px_6px_12px_rgba(0,0,0,0.08)] flex flex-col from-white gap-[28px] items-start left-[31px] p-[32px] rounded-[32px] to-[#edeef2] top-[359px] w-[408px]">
           <div className="flex items-baseline shrink-0">
-            <span className="font-['Pretendard:Medium',sans-serif] leading-[72px] text-[#131417] text-[66px]">{currentSpeed}</span>
+            <span className="font-['Pretendard:Medium',sans-serif] leading-[1.1] text-[#131417] text-[66px] tracking-[-1.6px]">{currentSpeed}</span>
             <span className="font-['Pretendard:Regular',sans-serif] leading-[37px] ml-[8px] text-[#99a1af] text-[22px]">km/h</span>
           </div>
           <div className="flex flex-col gap-[22px] items-start relative shrink-0 w-full">
@@ -425,9 +409,10 @@ function VehicleHMI() {
               {simType === 'roundabout' && simStage !== 'idle' && (
                 <motion.div
                   key="slider"
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 63 }}
-                  exit={{ opacity: 0, height: 0 }}
+                  initial={{ opacity: 0, y: 16, height: 0 }}
+                  animate={{ opacity: 1, y: 0, height: 63 }}
+                  exit={{ opacity: 0, y: 16, height: 0 }}
+                  transition={{ delay: 1.2, duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
                   className="w-full shrink-0"
                 >
                   <SwipeSlider onApprove={handleApproveDetour} />
@@ -436,9 +421,10 @@ function VehicleHMI() {
               {simType === 'aquaplaning' && simStage !== 'idle' && (
                 <motion.div
                   key="aquaplaning"
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 161 }}
-                  exit={{ opacity: 0, height: 0 }}
+                  initial={{ opacity: 0, y: 16, height: 0 }}
+                  animate={{ opacity: 1, y: 0, height: 161 }}
+                  exit={{ opacity: 0, y: 16, height: 0 }}
+                  transition={{ delay: 1.2, duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
                   className="w-full shrink-0 overflow-hidden"
                 >
                   <div className="bg-white border border-[rgba(19,20,23,0.05)] border-solid content-stretch drop-shadow-[0px_12px_6px_rgba(0,0,0,0.11)] flex flex-col gap-[25px] items-start p-[32px] relative rounded-[20px] shrink-0 w-full">
@@ -457,11 +443,11 @@ function VehicleHMI() {
                       </p>
                     </div>
                     <div className="relative shrink-0 w-[278px] h-[8px] bg-[#f0f0f0] rounded-full overflow-hidden">
-                      <motion.div 
+                      <motion.div
                         initial={{ width: '100%' }}
                         animate={{ width: '0%' }}
-                        transition={{ duration: 3, ease: 'linear' }}
-                        className="absolute top-0 left-0 h-full bg-[#2d7cf1] rounded-full" 
+                        transition={{ delay: 1.75, duration: 3, ease: 'linear' }}
+                        className="absolute top-0 left-0 h-full bg-[#2d7cf1] rounded-full"
                       />
                     </div>
                   </div>
@@ -696,11 +682,19 @@ function VehicleHMI() {
           <motion.button
             whileTap={{ scale: 0.92 }}
             className="btn-menu"
+            onClick={() => setIsControlPanelOpen(v => !v)}
           >
             <img src={iconMenu} alt="Menu" />
           </motion.button>
         </div>
       </div>
+
+      {/* ── Control Panel Drawer (vehicle controls + media wireframes) ── */}
+      <AnimatePresence>
+        {isControlPanelOpen && (
+          <ControlPanel onClose={() => setIsControlPanelOpen(false)} />
+        )}
+      </AnimatePresence>
       </div>
     </div>
   )

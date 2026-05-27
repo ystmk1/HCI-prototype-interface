@@ -5,6 +5,7 @@ import { Flame, Snowflake, Wind, Volume, Volume1, Volume2, VolumeX } from 'lucid
 
 import { ExperimentProvider, useExperiment } from './context/ExperimentContext'
 import OperatorConsole from './components/OperatorConsole'
+import { buildRouteSvg, formatDuration, formatDistance, formatClockTime } from './utils/kakaoNav'
 
 // === ASSET IMPORTS ===
 // Icons
@@ -66,6 +67,17 @@ function VehicleHMI() {
   const [muted, setMuted] = useState(false)
   const [volumeOpen, setVolumeOpen] = useState(false)
   const volumeCloseTimer = useRef(null)
+  // activeRoute is set by NavigationApp after the user confirms a destination.
+  // The left widget mirrors it; null means "no destination yet".
+  const [activeRoute, setActiveRoute] = useState(null)
+  // Tick once a minute so the left widget's remaining-time / arrival values
+  // stay current while a route is active.
+  const [, setRouteTick] = useState(0)
+  useEffect(() => {
+    if (!activeRoute) return
+    const id = setInterval(() => setRouteTick((t) => t + 1), 30_000)
+    return () => clearInterval(id)
+  }, [activeRoute])
 
   const openVolume = () => {
     setVolumeOpen(true)
@@ -363,45 +375,87 @@ function VehicleHMI() {
             filter: 'drop-shadow(0px 6px 12px rgba(0,0,0,0.08))',
           }}
         >
-          <div className="px-[32px] pt-[38px] flex items-center gap-[18px]">
-            <div className="w-[49px] h-[49px] rounded-[16px] bg-[#f7f8fa] border border-[rgba(19,20,23,0.2)] flex items-center justify-center shrink-0"
-                 style={{ filter: 'drop-shadow(0px 6px 12px rgba(0,0,0,0.08))' }}>
-              <img src={iconNav} alt="" className="w-[25px] h-[25px]" />
-            </div>
-            <div>
-              <p className="text-[18px] font-medium text-[#99a1af] leading-[25px]">목적지</p>
-              <p className="text-[22px] font-medium text-[#131417] leading-[31px] tracking-[-1px] whitespace-nowrap">서울시 강남구 대림로 47</p>
-            </div>
-          </div>
+          {(() => {
+            // Derive live metrics from activeRoute (or empty placeholders).
+            let destName = '어디로 갈까요?'
+            let destAddr = '내비게이션을 열어 목적지를 검색하세요'
+            let remainingKmText = '—'
+            let remainingMinText = '—'
+            let arrivalText = '—'
+            let svgPath = null
+            if (activeRoute) {
+              destName = activeRoute.destination.name
+              destAddr = activeRoute.destination.addr || ''
+              const arrival = new Date(activeRoute.baseArrivalIso)
+              const now = new Date()
+              const departure = new Date(activeRoute.departureIso)
+              const remainingMs = Math.max(0, arrival - now)
+              const elapsedSec = Math.max(0, (now - departure) / 1000)
+              const progress = Math.min(1, elapsedSec / Math.max(1, activeRoute.durationSec))
+              const remainingMeters = activeRoute.distanceM * (1 - progress)
+              remainingKmText = (remainingMeters / 1000).toFixed(1)
+              remainingMinText = String(Math.max(0, Math.round(remainingMs / 60_000)))
+              arrivalText = formatClockTime(arrival)
+              svgPath = buildRouteSvg(activeRoute.geometry, 297, 135, 14)
+            }
+            return (
+              <>
+                <div className="px-[32px] pt-[38px] flex items-center gap-[18px]">
+                  <div className="w-[49px] h-[49px] rounded-[16px] bg-[#f7f8fa] border border-[rgba(19,20,23,0.2)] flex items-center justify-center shrink-0"
+                       style={{ filter: 'drop-shadow(0px 6px 12px rgba(0,0,0,0.08))' }}>
+                    <img src={iconNav} alt="" className="w-[25px] h-[25px]" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[18px] font-medium text-[#99a1af] leading-[25px]">목적지</p>
+                    <p className={`text-[22px] font-medium leading-[31px] tracking-[-1px] truncate ${activeRoute ? 'text-[#131417]' : 'text-[#99a1af]'}`}>
+                      {destName}
+                    </p>
+                  </div>
+                </div>
 
-          <div className="mx-[32px] mt-[18px] w-[297px] h-[135px] bg-[#f7f8fa] rounded-[8px] overflow-hidden relative border border-[rgba(19,20,23,0.1)]">
-            <img src={imgMapSmall} alt="Navigation Map" className="w-full h-full object-cover" />
-          </div>
+                <div className="mx-[32px] mt-[18px] w-[297px] h-[135px] bg-[#f7f8fa] rounded-[8px] overflow-hidden relative border border-[rgba(19,20,23,0.1)] flex items-center justify-center">
+                  {svgPath ? (
+                    <svg width="297" height="135" viewBox="0 0 297 135" preserveAspectRatio="xMidYMid meet">
+                      <path d={svgPath.d} stroke="#2d7cf1" strokeWidth={4} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={0.95} />
+                      <circle cx={svgPath.start[0]} cy={svgPath.start[1]} r={7} fill="#2d7cf1" />
+                      <circle cx={svgPath.start[0]} cy={svgPath.start[1]} r={2.8} fill="#ffffff" />
+                      <circle cx={svgPath.end[0]} cy={svgPath.end[1]} r={8} fill="#e85d5d" />
+                      <circle cx={svgPath.end[0]} cy={svgPath.end[1]} r={3} fill="#ffffff" />
+                    </svg>
+                  ) : (
+                    <div className="text-center px-[20px]">
+                      <p className="text-[13px] text-[#99a1af] leading-[18px]">{destAddr}</p>
+                    </div>
+                  )}
+                </div>
 
-          <div className="h-[116px] border-t-2 border-[rgba(19,20,23,0.05)] flex items-center justify-center px-[32px] gap-[32px] mt-auto rounded-b-[20px]"
-               style={{
-                 background: 'linear-gradient(90deg, #fff 0%, #edeef2 100%), linear-gradient(90deg, #f7f8fa 0%, #f7f8fa 100%)',
-                 filter: 'drop-shadow(0px 6px 12px rgba(0,0,0,0.08))',
-               }}>
-            <div className="whitespace-nowrap">
-              <p className="text-[18px] text-[#99a1af] leading-[25px]">잔여거리</p>
-              <p className="text-[30px] font-semibold text-[#131417] leading-[25px] tracking-[-0.6px] whitespace-nowrap">
-                1.9 <span className="text-[18px] font-normal text-[#99a1af] tracking-[-0.36px]">km</span>
-              </p>
-            </div>
-            <div className="whitespace-nowrap">
-              <p className="text-[18px] text-[#99a1af] leading-[25px]">소요시간</p>
-              <p className="text-[30px] font-semibold text-[#131417] leading-[25px] tracking-[-0.6px] whitespace-nowrap">
-                12 <span className="text-[18px] font-normal text-[#99a1af] tracking-[-0.36px]">분</span>
-              </p>
-            </div>
-            <div className="whitespace-nowrap">
-              <p className="text-[18px] text-[#99a1af] leading-[25px]">도착예정</p>
-              <p className="text-[30px] font-semibold text-[#131417] leading-[25px] tracking-[-0.6px] whitespace-nowrap">
-                10:12 <span className="text-[18px] font-normal text-[#99a1af] tracking-[-0.36px]">PM</span>
-              </p>
-            </div>
-          </div>
+                <div className="h-[116px] border-t-2 border-[rgba(19,20,23,0.05)] flex items-center justify-center px-[32px] gap-[32px] mt-auto rounded-b-[20px]"
+                     style={{
+                       background: 'linear-gradient(90deg, #fff 0%, #edeef2 100%), linear-gradient(90deg, #f7f8fa 0%, #f7f8fa 100%)',
+                       filter: 'drop-shadow(0px 6px 12px rgba(0,0,0,0.08))',
+                     }}>
+                  <div className="whitespace-nowrap">
+                    <p className="text-[18px] text-[#99a1af] leading-[25px]">잔여거리</p>
+                    <p className="text-[30px] font-semibold text-[#131417] leading-[25px] tracking-[-0.6px] whitespace-nowrap tabular-nums">
+                      {remainingKmText} <span className="text-[18px] font-normal text-[#99a1af] tracking-[-0.36px]">km</span>
+                    </p>
+                  </div>
+                  <div className="whitespace-nowrap">
+                    <p className="text-[18px] text-[#99a1af] leading-[25px]">소요시간</p>
+                    <p className="text-[30px] font-semibold text-[#131417] leading-[25px] tracking-[-0.6px] whitespace-nowrap tabular-nums">
+                      {remainingMinText} <span className="text-[18px] font-normal text-[#99a1af] tracking-[-0.36px]">분</span>
+                    </p>
+                  </div>
+                  <div className="whitespace-nowrap">
+                    <p className="text-[18px] text-[#99a1af] leading-[25px]">도착예정</p>
+                    <p className="text-[30px] font-semibold text-[#131417] leading-[25px] tracking-[-0.6px] whitespace-nowrap tabular-nums">
+                      {arrivalText.replace(/\s(AM|PM)$/, '')} <span className="text-[18px] font-normal text-[#99a1af] tracking-[-0.36px]">{(arrivalText.match(/\s(AM|PM)$/) || [,''])[1]}</span>
+                    </p>
+                  </div>
+                </div>
+              </>
+            )
+          })()}
         </motion.div>
 
         <motion.div
@@ -571,6 +625,8 @@ function VehicleHMI() {
             isFullscreen={isNavigationFullscreen}
             setIsFullscreen={setIsNavigationFullscreen}
             isBriefingOpen={isBriefingOpen}
+            activeRoute={activeRoute}
+            setActiveRoute={setActiveRoute}
             onClose={() => {
               setActiveApp(null)
               setIsNavigationFullscreen(false)

@@ -68,15 +68,17 @@ export default function CalendarApp({ isFullscreen, setIsFullscreen, isBriefingO
       <div className="absolute top-[30px] right-[40px] flex items-center gap-[16px] z-20">
         <button 
           onClick={handleFullscreen}
-          className="w-[48px] h-[48px] rounded-full bg-white border border-[rgba(19,20,23,0.1)] shadow-[0px_4px_12px_rgba(0,0,0,0.05)] hover:bg-[#f7f8fa] transition-all flex items-center justify-center text-[#131417]"
+          className="btn-window-ctrl"
+          aria-label={isFullscreen ? "축소" : "최대화"}
         >
           {isFullscreen ? <Shrink size={20} /> : <Maximize2 size={20} />}
         </button>
         <button 
           onClick={handleClose}
-          className="w-[48px] h-[48px] rounded-full bg-white border border-[rgba(19,20,23,0.1)] shadow-[0px_4px_12px_rgba(0,0,0,0.05)] hover:bg-[#f7f8fa] transition-all flex items-center justify-center text-[#131417]"
+          className="btn-window-ctrl"
+          aria-label="닫기"
         >
-          <X size={24} />
+          <X size={20} />
         </button>
       </div>
 
@@ -88,9 +90,9 @@ export default function CalendarApp({ isFullscreen, setIsFullscreen, isBriefingO
           }`}
         >
           <div className={`px-[20px] mb-[40px] flex ${isNarrow ? 'justify-center' : 'justify-start'}`}>
-            <button className={`flex items-center rounded-full bg-[#131417] text-white shadow-[0px_6px_16px_rgba(19,20,23,0.2)] hover:scale-105 transition-all ${isNarrow ? 'justify-center w-[60px] h-[60px]' : 'px-[24px] h-[60px] w-[calc(100%-8px)]'}`}>
+            <button className={`btn-primary !rounded-full !shadow-[0px_6px_16px_rgba(45,124,241,0.2)] ${isNarrow ? 'justify-center w-[60px] h-[60px] p-0' : 'w-[220px]'}`}>
               <Plus size={22} />
-              {!isNarrow && <span className="ml-[12px] text-[18px] font-semibold">New Event</span>}
+              {!isNarrow && <span className="ml-[12px] text-[18px]">New Event</span>}
             </button>
           </div>
           
@@ -102,14 +104,12 @@ export default function CalendarApp({ isFullscreen, setIsFullscreen, isBriefingO
             ].map((item, i) => (
               <button 
                 key={i}
-                className={`flex items-center rounded-[16px] transition-all ${
-                  item.active 
-                    ? 'bg-white shadow-[0px_2px_8px_rgba(0,0,0,0.04)] text-[#2d7cf1]' 
-                    : 'text-[#666] hover:bg-[rgba(255,255,255,0.5)]'
-                } ${isNarrow ? 'justify-center w-[68px] h-[60px] mx-auto' : 'px-[20px] py-[16px]'}`}
+                className={`sidebar-tab ${item.active ? 'active' : ''} ${
+                  isNarrow ? 'justify-center w-[68px] h-[60px] mx-auto' : 'px-[20px] py-[16px] w-[228px]'
+                }`}
               >
-                <item.icon size={22} className={item.active ? 'text-[#2d7cf1]' : ''} />
-                {!isNarrow && <span className={`ml-[16px] text-[18px] ${item.active ? 'font-medium' : ''}`}>{item.label}</span>}
+                <item.icon size={22} />
+                {!isNarrow && <span className="ml-[16px] text-[18px]">{item.label}</span>}
               </button>
             ))}
           </div>
@@ -119,7 +119,7 @@ export default function CalendarApp({ isFullscreen, setIsFullscreen, isBriefingO
         <div className="flex-1 border-r border-[rgba(19,20,23,0.05)] bg-[rgba(255,255,255,0.5)] flex flex-col">
           <div className={`h-[120px] px-[40px] flex items-center justify-between shrink-0 ${isNarrow ? 'pr-[220px]' : 'pr-[40px]'}`}>
             <div className="flex items-center gap-[24px]">
-              <h2 className="text-[32px] font-bold text-[#131417]">May 2026</h2>
+              <h2 className="text-[32px] font-bold text-[#131417] tracking-tight">May 2026</h2>
               <div className="flex gap-[8px]">
                 <button className="p-2 hover:bg-white rounded-full transition-all border border-transparent hover:border-[rgba(19,20,23,0.1)]">
                   <ChevronLeft size={24} />
@@ -129,10 +129,10 @@ export default function CalendarApp({ isFullscreen, setIsFullscreen, isBriefingO
                 </button>
               </div>
             </div>
-            <div className="flex bg-[rgba(19,20,23,0.05)] p-1 rounded-xl">
-              <button className="px-4 py-2 bg-white rounded-lg shadow-sm text-sm font-medium">Month</button>
-              <button className="px-4 py-2 text-sm font-medium text-[#666]">Week</button>
-              <button className="px-4 py-2 text-sm font-medium text-[#666]">Day</button>
+            <div className="flex bg-[rgba(19,20,23,0.05)] p-[4px] rounded-[12px]">
+              <button className="px-4 py-2 bg-white rounded-[9px] shadow-sm text-sm font-semibold text-[#2d7cf1]">Month</button>
+              <button className="px-4 py-2 text-sm font-medium text-[#666] hover:text-[#131417] transition-colors">Week</button>
+              <button className="px-4 py-2 text-sm font-medium text-[#666] hover:text-[#131417] transition-colors">Day</button>
             </div>
           </div>
           
@@ -182,10 +182,10 @@ export default function CalendarApp({ isFullscreen, setIsFullscreen, isBriefingO
         {/* Agenda View */}
         {!isNarrow && (
           <div className="w-[400px] flex flex-col bg-[rgba(255,255,255,0.2)]">
-            <div className="h-[120px] px-[40px] pr-[140px] flex items-center shrink-0 border-b border-[rgba(19,20,23,0.05)]">
+            <div className="h-[120px] px-[40px] pr-[40px] flex items-center shrink-0 border-b border-[rgba(19,20,23,0.05)]">
               <div className="flex flex-col">
-                <h3 className="text-[24px] font-bold text-[#131417]">Agenda</h3>
-                <span className="text-[16px] text-[#99a1af]">Friday, May {selectedDate}</span>
+                <h3 className="text-[32px] font-bold text-[#131417] tracking-tight">Agenda</h3>
+                <span className="text-[15px] text-[#99a1af] mt-1">Friday, May {selectedDate}</span>
               </div>
             </div>
             
@@ -197,7 +197,7 @@ export default function CalendarApp({ isFullscreen, setIsFullscreen, isBriefingO
                       <div className={`w-1.5 h-16 rounded-full ${event.color} shrink-0`}></div>
                       <div className="flex flex-col">
                         <span className="text-[14px] font-bold text-[#2d7cf1] mb-1">{event.time}</span>
-                        <h4 className="text-[20px] font-bold text-[#131417] leading-tight mb-2">{event.title}</h4>
+                        <h4 className="text-[18px] font-bold text-[#131417] leading-tight mb-2">{event.title}</h4>
                         <div className="flex items-center gap-4 text-[#666]">
                           <div className="flex items-center gap-1">
                             <MapPin size={14} />

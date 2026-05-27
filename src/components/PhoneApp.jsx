@@ -64,15 +64,17 @@ export default function PhoneApp({ isFullscreen, setIsFullscreen, isBriefingOpen
       <div className="absolute top-[30px] right-[40px] flex items-center gap-[16px] z-20">
         <button 
           onClick={handleFullscreen}
-          className="w-[48px] h-[48px] rounded-full bg-white border border-[rgba(19,20,23,0.1)] shadow-[0px_4px_12px_rgba(0,0,0,0.05)] hover:bg-[#f7f8fa] transition-all flex items-center justify-center text-[#131417]"
+          className="btn-window-ctrl"
+          aria-label={isFullscreen ? "축소" : "최대화"}
         >
           {isFullscreen ? <Shrink size={20} /> : <Maximize2 size={20} />}
         </button>
         <button 
           onClick={handleClose}
-          className="w-[48px] h-[48px] rounded-full bg-white border border-[rgba(19,20,23,0.1)] shadow-[0px_4px_12px_rgba(0,0,0,0.05)] hover:bg-[#f7f8fa] transition-all flex items-center justify-center text-[#131417]"
+          className="btn-window-ctrl"
+          aria-label="닫기"
         >
-          <X size={24} />
+          <X size={20} />
         </button>
       </div>
 
@@ -93,14 +95,12 @@ export default function PhoneApp({ isFullscreen, setIsFullscreen, isBriefingOpen
               <button 
                 key={view.id}
                 onClick={() => setActiveView(view.id)}
-                className={`flex items-center rounded-[16px] transition-all ${
-                  activeView === view.id 
-                    ? 'bg-white shadow-[0px_2px_8px_rgba(0,0,0,0.04)] text-[#131417]' 
-                    : 'text-[#666] hover:bg-[rgba(255,255,255,0.5)]'
-                } ${isNarrow ? 'justify-center w-[68px] h-[60px] mx-auto' : 'px-[20px] py-[16px]'}`}
+                className={`sidebar-tab ${activeView === view.id ? 'active' : ''} ${
+                  isNarrow ? 'justify-center w-[68px] h-[60px] mx-auto' : 'px-[20px] py-[16px] w-[228px]'
+                }`}
               >
-                <view.icon size={22} className={activeView === view.id ? 'text-[#131417]' : ''} />
-                {!isNarrow && <span className={`ml-[16px] text-[18px] ${activeView === view.id ? 'font-medium' : ''}`}>{view.id}</span>}
+                <view.icon size={22} />
+                {!isNarrow && <span className="ml-[16px] text-[18px]">{view.id}</span>}
               </button>
             ))}
           </div>
@@ -111,36 +111,36 @@ export default function PhoneApp({ isFullscreen, setIsFullscreen, isBriefingOpen
           {/* List */}
           <div className={`${isNarrow ? 'w-full' : 'w-[450px]'} flex flex-col border-r border-[rgba(19,20,23,0.05)] bg-[rgba(255,255,255,0.1)]`}>
              <div className="h-[120px] px-[40px] flex items-center justify-between shrink-0">
-               <h2 className="text-[32px] font-bold text-[#131417]">{activeView}</h2>
-               <button className="text-[#2d7cf1]"><UserPlus size={24} /></button>
+               <h2 className="text-[32px] font-bold text-[#131417] tracking-tight">{activeView}</h2>
+               <button className="w-[48px] h-[48px] rounded-full bg-white border border-[rgba(19,20,23,0.1)] shadow-[0px_4px_12px_rgba(0,0,0,0.05)] hover:bg-[#f7f8fa] transition-all flex items-center justify-center text-[#2d7cf1]"><UserPlus size={24} /></button>
              </div>
              
              <div className="flex-1 overflow-y-auto px-[20px]">
-               <div className="px-4 mb-6">
-                  <div className="relative">
-                    <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#99a1af]" />
-                    <input type="text" placeholder="Search contacts" className="w-full h-[54px] bg-[rgba(19,20,23,0.05)] rounded-[16px] pl-[48px] pr-[20px] text-[18px] outline-none" />
+                <div className="px-4 mb-6">
+                  <div className="search-container relative">
+                    <Search size={20} className="text-[#99a1af] mr-3 shrink-0" />
+                    <input type="text" placeholder="Search contacts" className="w-full h-full bg-transparent text-[18px] outline-none placeholder:text-[#99a1af]" />
                   </div>
-               </div>
-               {contacts.map(contact => (
-                 <motion.div 
-                   key={contact.id}
-                   whileHover={{ x: 5 }}
-                   onClick={() => setSelectedContact(contact)}
-                   className={`p-[20px] rounded-[24px] mb-[8px] cursor-pointer transition-all flex items-center gap-4 ${
-                     selectedContact?.id === contact.id ? 'bg-white shadow-[0px_10px_30px_rgba(0,0,0,0.08)]' : 'hover:bg-white/50'
-                   }`}
-                 >
-                   <div className={`w-[60px] h-[60px] rounded-full ${contact.color} flex items-center justify-center text-white text-[22px] font-bold`}>
-                     {contact.name.charAt(0)}
-                   </div>
-                   <div className="flex-1">
-                     <h4 className="text-[20px] font-bold text-[#131417]">{contact.name}</h4>
-                     <p className="text-[16px] text-[#99a1af]">{contact.status}</p>
-                   </div>
-                   <span className="text-[14px] text-[#99a1af]">{contact.time}</span>
-                 </motion.div>
-               ))}
+                </div>
+                {contacts.map(contact => (
+                  <motion.div 
+                    key={contact.id}
+                    whileHover={{ x: 5 }}
+                    onClick={() => setSelectedContact(contact)}
+                    className={`list-item flex items-center gap-4 mb-[8px] ${
+                      selectedContact?.id === contact.id ? 'selected' : ''
+                    }`}
+                  >
+                    <div className={`w-[60px] h-[60px] rounded-full ${contact.color} flex items-center justify-center text-white text-[22px] font-bold`}>
+                      {contact.name.charAt(0)}
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-[18px] font-semibold text-[#131417]">{contact.name}</h4>
+                      <p className="text-[15px] text-[#99a1af]">{contact.status}</p>
+                    </div>
+                    <span className="text-[14px] text-[#99a1af]">{contact.time}</span>
+                  </motion.div>
+                ))}
              </div>
           </div>
 
@@ -155,8 +155,8 @@ export default function PhoneApp({ isFullscreen, setIsFullscreen, isBriefingOpen
                     >
                       {selectedContact.name.charAt(0)}
                     </motion.div>
-                    <h1 className="text-[48px] font-bold text-[#131417] mb-2">{selectedContact.name}</h1>
-                    <p className="text-[24px] text-[#99a1af] mb-12">{selectedContact.status} · 010-1234-5678</p>
+                     <h1 className="text-[36px] font-bold text-[#131417] leading-tight tracking-tight mb-2">{selectedContact.name}</h1>
+                     <p className="text-[18px] text-[#99a1af] mb-12">{selectedContact.status} · 010-1234-5678</p>
                     
                     <div className="flex gap-[32px] mb-16">
                        <button className="w-[84px] h-[84px] rounded-full bg-[#34C759] flex items-center justify-center text-white shadow-xl hover:scale-105 transition-all"><PhoneCall size={32} fill="currentColor" /></button>

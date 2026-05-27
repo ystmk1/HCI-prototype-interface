@@ -62,15 +62,17 @@ export default function MailApp({ isFullscreen, setIsFullscreen, isBriefingOpen,
       <div className="absolute top-[30px] right-[40px] flex items-center gap-[16px] z-20">
         <button 
           onClick={handleFullscreen}
-          className="w-[48px] h-[48px] rounded-full bg-white border border-[rgba(19,20,23,0.1)] shadow-[0px_4px_12px_rgba(0,0,0,0.05)] hover:bg-[#f7f8fa] transition-all flex items-center justify-center text-[#131417]"
+          className="btn-window-ctrl"
+          aria-label={isFullscreen ? "축소" : "최대화"}
         >
           {isFullscreen ? <Shrink size={20} /> : <Maximize2 size={20} />}
         </button>
         <button 
           onClick={handleClose}
-          className="w-[48px] h-[48px] rounded-full bg-white border border-[rgba(19,20,23,0.1)] shadow-[0px_4px_12px_rgba(0,0,0,0.05)] hover:bg-[#f7f8fa] transition-all flex items-center justify-center text-[#131417]"
+          className="btn-window-ctrl"
+          aria-label="닫기"
         >
-          <X size={24} />
+          <X size={20} />
         </button>
       </div>
 
@@ -82,9 +84,9 @@ export default function MailApp({ isFullscreen, setIsFullscreen, isBriefingOpen,
           }`}
         >
           <div className={`px-[20px] mb-[40px] flex ${isNarrow ? 'justify-center' : 'justify-start'}`}>
-            <button className={`flex items-center rounded-full bg-[#131417] text-white shadow-[0px_6px_16px_rgba(19,20,23,0.2)] hover:scale-105 transition-all ${isNarrow ? 'justify-center w-[60px] h-[60px]' : 'px-[24px] h-[60px] w-[calc(100%-8px)]'}`}>
+            <button className={`btn-primary !rounded-full !shadow-[0px_6px_16px_rgba(45,124,241,0.2)] ${isNarrow ? 'justify-center w-[60px] h-[60px] p-0' : 'w-[220px]'}`}>
               <Plus size={22} />
-              {!isNarrow && <span className="ml-[12px] text-[18px] font-semibold">New Mail</span>}
+              {!isNarrow && <span className="ml-[12px] text-[18px]">New Mail</span>}
             </button>
           </div>
           
@@ -98,14 +100,12 @@ export default function MailApp({ isFullscreen, setIsFullscreen, isBriefingOpen,
               <button 
                 key={folder.id}
                 onClick={() => setActiveFolder(folder.id)}
-                className={`flex items-center rounded-[16px] transition-all ${
-                  activeFolder === folder.id 
-                    ? 'bg-white shadow-[0px_2px_8px_rgba(0,0,0,0.04)] text-[#131417]' 
-                    : 'text-[#666] hover:bg-[rgba(255,255,255,0.5)]'
-                } ${isNarrow ? 'justify-center w-[68px] h-[60px] mx-auto' : 'px-[20px] py-[16px]'}`}
+                className={`sidebar-tab ${activeFolder === folder.id ? 'active' : ''} ${
+                  isNarrow ? 'justify-center w-[68px] h-[60px] mx-auto' : 'px-[20px] py-[16px] w-[228px]'
+                }`}
               >
-                <folder.icon size={22} className={activeFolder === folder.id ? 'text-[#131417]' : ''} />
-                {!isNarrow && <span className={`ml-[16px] text-[18px] ${activeFolder === folder.id ? 'font-medium' : ''}`}>{folder.id}</span>}
+                <folder.icon size={22} />
+                {!isNarrow && <span className="ml-[16px] text-[18px]">{folder.id}</span>}
               </button>
             ))}
           </div>
@@ -116,26 +116,26 @@ export default function MailApp({ isFullscreen, setIsFullscreen, isBriefingOpen,
           {/* List */}
           <div className={`${isNarrow ? 'w-full' : 'w-[450px]'} flex flex-col border-r border-[rgba(19,20,23,0.05)] bg-[rgba(255,255,255,0.1)]`}>
              <div className="h-[120px] px-[40px] flex items-center shrink-0">
-               <h2 className="text-[32px] font-bold text-[#131417]">{activeFolder}</h2>
+               <h2 className="text-[32px] font-bold text-[#131417] tracking-tight">{activeFolder}</h2>
              </div>
              
              <div className="flex-1 overflow-y-auto px-[20px]">
-               {emails.map(email => (
-                 <motion.div 
-                   key={email.id}
-                   whileHover={{ x: 5 }}
-                   className={`p-[24px] rounded-[24px] mb-[12px] cursor-pointer transition-all ${
-                     email.id === 1 ? 'bg-white shadow-[0px_10px_30px_rgba(0,0,0,0.08)]' : 'hover:bg-white/50'
-                   }`}
-                 >
-                   <div className="flex justify-between items-center mb-1">
-                     <span className={`text-[18px] ${email.unread ? 'font-bold text-[#131417]' : 'text-[#666]'}`}>{email.sender}</span>
-                     <span className="text-[14px] text-[#99a1af]">{email.time}</span>
-                   </div>
-                   <h4 className={`text-[16px] mb-2 ${email.unread ? 'font-bold text-[#131417]' : 'text-[#666]'}`}>{email.subject}</h4>
-                   <p className="text-[15px] text-[#99a1af] line-clamp-2 leading-relaxed">{email.content}</p>
-                 </motion.div>
-               ))}
+                {emails.map(email => (
+                  <motion.div 
+                    key={email.id}
+                    whileHover={{ x: 5 }}
+                    className={`list-item mb-[10px] ${
+                      email.id === 1 ? 'selected' : ''
+                    }`}
+                  >
+                    <div className="flex justify-between items-center mb-1">
+                      <span className={`text-[18px] ${email.unread ? 'font-bold text-[#2d7cf1]' : 'text-[#666]'}`}>{email.sender}</span>
+                      <span className="text-[14px] text-[#99a1af]">{email.time}</span>
+                    </div>
+                    <h4 className={`text-[15px] mb-2 ${email.unread ? 'font-bold text-[#131417]' : 'text-[#666]'}`}>{email.subject}</h4>
+                    <p className="text-[14px] text-[#99a1af] line-clamp-2 leading-relaxed">{email.content}</p>
+                  </motion.div>
+                ))}
              </div>
           </div>
 
@@ -144,7 +144,7 @@ export default function MailApp({ isFullscreen, setIsFullscreen, isBriefingOpen,
             <div className="flex-1 flex flex-col bg-white/30 p-[60px]">
                <div className="mb-[60px] flex justify-between items-start">
                   <div>
-                    <h1 className="text-[42px] font-bold text-[#131417] mb-2">Project Orion Update</h1>
+                     <h1 className="text-[36px] font-bold text-[#131417] mb-2 tracking-tight">Project Orion Update</h1>
                     <div className="flex items-center gap-3">
                        <div className="w-[40px] h-[40px] rounded-full bg-[#E85D5D] flex items-center justify-center text-white font-bold">JC</div>
                        <span className="text-[20px] font-medium text-[#131417]">Jane Cooper</span>
@@ -162,8 +162,8 @@ export default function MailApp({ isFullscreen, setIsFullscreen, isBriefingOpen,
                </div>
                
                <div className="mt-[60px] pt-[40px] border-t border-[rgba(19,20,23,0.05)] flex gap-4">
-                  <button className="px-[32px] py-[16px] bg-[#131417] text-white rounded-[16px] font-bold">Reply</button>
-                  <button className="px-[32px] py-[16px] bg-white border border-[rgba(19,20,23,0.1)] text-[#131417] rounded-[16px] font-bold">Forward</button>
+                  <button className="btn-primary">Reply</button>
+                  <button className="btn-secondary">Forward</button>
                </div>
             </div>
           )}

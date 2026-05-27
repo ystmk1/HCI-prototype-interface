@@ -72,15 +72,17 @@ export default function MusicApp({ isFullscreen, setIsFullscreen, isBriefingOpen
       <div className="absolute top-[30px] right-[40px] flex items-center gap-[16px] z-10">
         <button 
           onClick={handleFullscreen}
-          className="w-[48px] h-[48px] rounded-full bg-white border border-[rgba(19,20,23,0.1)] shadow-[0px_4px_12px_rgba(0,0,0,0.05)] hover:bg-[#f7f8fa] transition-all flex items-center justify-center text-[#131417]"
+          className="btn-window-ctrl"
+          aria-label={isFullscreen ? "축소" : "최대화"}
         >
           {isFullscreen ? <Shrink size={20} /> : <Maximize2 size={20} />}
         </button>
         <button 
           onClick={handleClose}
-          className="w-[48px] h-[48px] rounded-full bg-white border border-[rgba(19,20,23,0.1)] shadow-[0px_4px_12px_rgba(0,0,0,0.05)] hover:bg-[#f7f8fa] transition-all flex items-center justify-center text-[#131417]"
+          className="btn-window-ctrl"
+          aria-label="닫기"
         >
-          <X size={24} />
+          <X size={20} />
         </button>
       </div>
 
@@ -100,14 +102,12 @@ export default function MusicApp({ isFullscreen, setIsFullscreen, isBriefingOpen
               <button 
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center rounded-[16px] transition-all ${
-                  activeTab === tab.id 
-                    ? 'bg-white shadow-[0px_2px_8px_rgba(0,0,0,0.04)] text-[#131417]' 
-                    : 'text-[#666] hover:bg-[rgba(255,255,255,0.5)]'
-                } ${isNarrow ? 'justify-center w-[68px] h-[60px] mx-auto' : 'px-[20px] py-[16px]'}`}
+                className={`sidebar-tab ${activeTab === tab.id ? 'active' : ''} ${
+                  isNarrow ? 'justify-center w-[68px] h-[60px] mx-auto' : 'px-[20px] py-[16px] w-[228px]'
+                }`}
               >
-                <tab.icon size={22} className={activeTab === tab.id ? 'text-[#131417]' : ''} />
-                {!isNarrow && <span className={`ml-[16px] text-[18px] ${activeTab === tab.id ? 'font-medium' : ''}`}>{tab.id}</span>}
+                <tab.icon size={22} />
+                {!isNarrow && <span className="ml-[16px] text-[18px]">{tab.id}</span>}
               </button>
             ))}
           </div>
@@ -135,13 +135,13 @@ export default function MusicApp({ isFullscreen, setIsFullscreen, isBriefingOpen
         <div className="flex-1 flex flex-col justify-center py-[20px]">
           {/* Track Info */}
           <div className="mb-[50px]">
-            <div className="flex items-center gap-6 mb-4">
-              <h2 className="text-[54px] font-bold text-[#131417] leading-tight tracking-tight">Time Moves Slow</h2>
-              <button className="text-[#99a1af] hover:text-[#ff4757] transition-colors pt-2">
-                <Heart size={44} />
+            <div className="flex items-center gap-6 mb-2">
+              <h1 className="text-[36px] font-bold text-[#131417] leading-tight tracking-tight">Time Moves Slow</h1>
+              <button className="text-[#99a1af] hover:text-[#ff4757] transition-colors pt-1">
+                <Heart size={32} />
               </button>
             </div>
-            <p className="text-[32px] font-medium text-[#99a1af]">BADBADNOTGOOD</p>
+            <p className="text-[22px] font-medium text-[#99a1af]">BADBADNOTGOOD</p>
             <div className="mt-6 inline-block px-4 py-1.5 bg-[#131417]/5 rounded-full">
               <span className="text-[16px] font-semibold text-[#131417]/60 tracking-wider uppercase">Soul Jazz</span>
             </div>

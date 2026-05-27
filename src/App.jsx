@@ -24,23 +24,13 @@ import iconMail from '../assets/icons/Icon-1.svg'        // mail
 import iconCalendar from '../assets/icons/Icon.svg'      // calendar
 import iconMenu from '../assets/icons/Icon-13.svg'       // hamburger menu
 
-// Map vectors
-import vectorRoute from '../assets/icons/Vector 1.svg'   // route line
-import vectorCursor from '../assets/icons/Vector.svg'     // blue nav cursor
-import vectorDotRed from '../assets/icons/Vector-1.svg'   // red dot
-import vectorDotGreen from '../assets/icons/Vector-2.svg' // green dot
-import vectorRoad from '../assets/icons/Vector-3.svg'     // road curve
-
-// Map pin
-import groupPin from '../assets/icons/Group 49.svg'       // map pin
-
 // Images
 import imgMap from '../assets/images/image 21.png'        // road/ADAS view (camera widget)
 import imgCar from '../assets/images/image 26.png'        // car side view
 import imgMapSmall from '../assets/images/image 21-2.png' // mini map for camera
 
 import MusicApp from './components/MusicApp'
-import BriefingPanel from './components/BriefingPanel'
+import SwipeSlider from './components/SwipeSlider'
 import MailApp from './components/MailApp'
 import PhoneApp from './components/PhoneApp'
 import CalendarApp from './components/CalendarApp'
@@ -356,205 +346,131 @@ function VehicleHMI() {
         </div>
       </div>
 
-      <motion.div 
-        animate={{ 
+      <motion.div
+        animate={{
           opacity: (activeApp === 'Music' && isMusicFullscreen) ? 0 : 1,
           x: (activeApp === 'Music' && isMusicFullscreen) ? -100 : 0,
-          pointerEvents: (activeApp === 'Music' && isMusicFullscreen) ? 'none' : 'auto'
+        }}
+        style={{
+          pointerEvents: (activeApp === 'Music' && isMusicFullscreen) ? 'none' : 'auto',
         }}
         transition={{ duration: 0.5, ease: "easeInOut" }}
-        className="absolute left-[33px] top-[104px] h-[830px] flex flex-col justify-between w-[361px] z-20"
+        className="absolute inset-0 z-20 pointer-events-none"
       >
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5 }}
-          className="w-[361px] h-[390px] rounded-[20px] border border-[rgba(19,20,23,0.05)] overflow-hidden flex flex-col shrink-0"
-          style={{
-            background: 'linear-gradient(90deg, #fff 0%, #edeef2 100%)',
-            filter: 'drop-shadow(0px 6px 12px rgba(0,0,0,0.08))',
-          }}
-        >
+        {/* Top Destination Widget — Figma: left-33 top-122 w-406 */}
+        <div className="pointer-events-auto absolute bg-gradient-to-r border border-[rgba(19,20,23,0.1)] border-solid drop-shadow-[0px_6px_12px_rgba(0,0,0,0.08)] flex flex-col from-white gap-[12px] items-center left-[33px] p-[32px] rounded-[32px] to-[#edeef2] top-[122px] w-[406px]">
           {(() => {
-            // Derive live metrics from activeRoute (or empty placeholders).
-            let destName = '어디로 갈까요?'
-            let destAddr = '내비게이션을 열어 목적지를 검색하세요'
-            let remainingKmText = '—'
-            let remainingMinText = '—'
-            let arrivalText = '—'
-            let svgPath = null
+            let destName = '홍익대학교 서울캠퍼스'
+            let arrivalText = '10:12 PM'
             if (activeRoute) {
               destName = activeRoute.destination.name
-              destAddr = activeRoute.destination.addr || ''
-              const arrival = new Date(activeRoute.baseArrivalIso)
-              const now = new Date()
-              const departure = new Date(activeRoute.departureIso)
-              const remainingMs = Math.max(0, arrival - now)
-              const elapsedSec = Math.max(0, (now - departure) / 1000)
-              const progress = Math.min(1, elapsedSec / Math.max(1, activeRoute.durationSec))
-              const remainingMeters = activeRoute.distanceM * (1 - progress)
-              remainingKmText = (remainingMeters / 1000).toFixed(1)
-              remainingMinText = String(Math.max(0, Math.round(remainingMs / 60_000)))
-              arrivalText = formatClockTime(arrival)
-              svgPath = buildRouteSvg(activeRoute.geometry, 297, 135, 14)
+              arrivalText = formatClockTime(new Date(activeRoute.baseArrivalIso))
             }
+            const timeParts = arrivalText.split(' ')
+            const timeOnly = timeParts[0] || '10:12'
+            const ampm = timeParts[1] || 'PM'
+
             return (
               <>
-                <div className="px-[32px] pt-[38px] flex items-center gap-[18px]">
-                  <div className="w-[49px] h-[49px] rounded-[16px] bg-[#f7f8fa] border border-[rgba(19,20,23,0.2)] flex items-center justify-center shrink-0"
-                       style={{ filter: 'drop-shadow(0px 6px 12px rgba(0,0,0,0.08))' }}>
-                    <img src={iconNav} alt="" className="w-[25px] h-[25px]" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[18px] font-medium text-[#99a1af] leading-[25px]">목적지</p>
-                    <p className={`text-[22px] font-medium leading-[31px] tracking-[-1px] truncate ${activeRoute ? 'text-[#131417]' : 'text-[#99a1af]'}`}>
-                      {destName}
-                    </p>
-                  </div>
+                <div className="[word-break:break-word] content-stretch flex flex-col font-['Pretendard:Medium',sans-serif] items-start leading-[1.4] not-italic relative shrink-0 w-[294px]">
+                  <p className="relative shrink-0 text-[#99a1af] text-[22px] w-full">
+                    목적지
+                  </p>
+                  <p className="relative shrink-0 text-[#131417] text-[26px] tracking-[-1px] w-full truncate">
+                    {destName}
+                  </p>
                 </div>
-
-                <div className="mx-[32px] mt-[18px] w-[297px] h-[135px] bg-[#f7f8fa] rounded-[8px] overflow-hidden relative border border-[rgba(19,20,23,0.1)] flex items-center justify-center">
-                  {svgPath ? (
-                    <svg width="297" height="135" viewBox="0 0 297 135" preserveAspectRatio="xMidYMid meet">
-                      <path d={svgPath.d} stroke="#2d7cf1" strokeWidth={4} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={0.95} />
-                      <circle cx={svgPath.start[0]} cy={svgPath.start[1]} r={7} fill="#2d7cf1" />
-                      <circle cx={svgPath.start[0]} cy={svgPath.start[1]} r={2.8} fill="#ffffff" />
-                      <circle cx={svgPath.end[0]} cy={svgPath.end[1]} r={8} fill="#e85d5d" />
-                      <circle cx={svgPath.end[0]} cy={svgPath.end[1]} r={3} fill="#ffffff" />
-                    </svg>
-                  ) : (
-                    <div className="text-center px-[20px]">
-                      <p className="text-[13px] text-[#99a1af] leading-[18px]">{destAddr}</p>
+                <div className="flex h-[64px] items-start relative shrink-0 w-[294px] mt-[12px]">
+                  <div className="relative w-[106px] h-[66px] ml-[13.5px]">
+                    {activeRoute ? (
+                      <svg width="100%" height="100%" viewBox="0 0 106 66" preserveAspectRatio="xMidYMid meet">
+                        <path d={buildRouteSvg(activeRoute.geometry, 106, 66, 8).d} stroke="#2d7cf1" strokeWidth={3} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={0.95} />
+                      </svg>
+                    ) : (
+                      <svg width="106" height="67" viewBox="0 0 106 67" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M4 14.5C11.5 14.5 15.5 12.5 17 9.5C21.5 0.499998 32.5 5 36 9.5C39.5 14 43 18.5 49.5 18.5C56 18.5 61 14 66 11.5C71 9 76 3 83.5 3.49999C91 3.99999 101.5 12.5 97.5 28C93.5 43.5 83.5 42 79.5 44.5C75.5 47 69 49 66 49C63 49 54.5 51.5 53 54C51.5 56.5 48.5 60.5 44 60C39.5 59.5 35 59.5 29 60.5" stroke="#2D7CF1" strokeWidth="3" strokeLinecap="round"/>
+                        <path d="M29 60.5C25.4 61.1 19.3333 60.3333 16 59.5" stroke="#2D7CF1" strokeWidth="3" strokeLinecap="round" strokeDasharray="3 4"/>
+                        <circle cx="4" cy="14" r="3" fill="white" stroke="#2D7CF1" strokeWidth="2"/>
+                        <circle cx="15.5" cy="59.5" r="2.5" fill="white" stroke="#2D7CF1" strokeWidth="1"/>
+                      </svg>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-start relative w-[114px] ml-[46px]">
+                    <p className="font-['Pretendard:Regular',sans-serif] leading-[29px] text-[#99a1af] text-[22px]">
+                      도착예정
+                    </p>
+                    <div className="flex items-baseline gap-[4px] mt-[5px]">
+                      <span className="font-['Pretendard:SemiBold',sans-serif] text-[34px] tracking-[-0.68px] text-[#131417] leading-[29px]">{timeOnly}</span>
+                      <span className="font-['Pretendard:Regular',sans-serif] text-[22px] tracking-[-0.44px] text-[#99a1af] leading-[29px]">{ampm}</span>
                     </div>
-                  )}
-                </div>
-
-                <div className="h-[116px] border-t-2 border-[rgba(19,20,23,0.05)] flex items-center justify-center px-[32px] gap-[32px] mt-auto rounded-b-[20px]"
-                     style={{
-                       background: 'linear-gradient(90deg, #fff 0%, #edeef2 100%), linear-gradient(90deg, #f7f8fa 0%, #f7f8fa 100%)',
-                       filter: 'drop-shadow(0px 6px 12px rgba(0,0,0,0.08))',
-                     }}>
-                  <div className="whitespace-nowrap">
-                    <p className="text-[18px] text-[#99a1af] leading-[25px]">잔여거리</p>
-                    <p className="text-[30px] font-semibold text-[#131417] leading-[25px] tracking-[-0.6px] whitespace-nowrap tabular-nums">
-                      {remainingKmText} <span className="text-[18px] font-normal text-[#99a1af] tracking-[-0.36px]">km</span>
-                    </p>
-                  </div>
-                  <div className="whitespace-nowrap">
-                    <p className="text-[18px] text-[#99a1af] leading-[25px]">소요시간</p>
-                    <p className="text-[30px] font-semibold text-[#131417] leading-[25px] tracking-[-0.6px] whitespace-nowrap tabular-nums">
-                      {remainingMinText} <span className="text-[18px] font-normal text-[#99a1af] tracking-[-0.36px]">분</span>
-                    </p>
-                  </div>
-                  <div className="whitespace-nowrap">
-                    <p className="text-[18px] text-[#99a1af] leading-[25px]">도착예정</p>
-                    <p className="text-[30px] font-semibold text-[#131417] leading-[25px] tracking-[-0.6px] whitespace-nowrap tabular-nums">
-                      {arrivalText.replace(/\s(AM|PM)$/, '')} <span className="text-[18px] font-normal text-[#99a1af] tracking-[-0.36px]">{(arrivalText.match(/\s(AM|PM)$/) || [,''])[1]}</span>
-                    </p>
                   </div>
                 </div>
               </>
             )
           })()}
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className="w-[361px] h-[160px] bg-[#f7f8fa] border border-[rgba(19,20,23,0.2)] rounded-[20px] relative overflow-hidden shrink-0"
-          style={{ boxShadow: '0px 6px 24px 0px rgba(0,0,0,0.08)' }}
-        >
-          <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-40">
-            {[...Array(8)].map((_, i) => (
-              <motion.div
-                key={i}
-                className="absolute h-[2px] bg-gradient-to-r from-transparent via-[rgba(19,20,23,0.15)] to-transparent"
-                style={{
-                  width: Math.floor(Math.random() * 80 + 40) + 'px',
-                  top: Math.floor(Math.random() * 120 + 10) + 'px',
-                  left: '-100px'
-                }}
-                animate={{
-                  left: ['-100px', '400px'],
-                }}
-                transition={{
-                  duration: Math.random() * 1.2 + 0.6,
-                  repeat: Infinity,
-                  delay: Math.random() * 1.5,
-                  ease: "linear"
-                }}
-              />
-            ))}
-          </div>
-
-          <div className="absolute left-[26px] top-[15px] z-10">
-            <span className="text-[66px] font-medium text-[#131417] leading-[72px] tabular-nums">{currentSpeed}</span>
-            <br />
-            <span className="text-[22px] text-[#99a1af] leading-[37px]">km/h</span>
-          </div>
-          <div className="absolute right-[-20px] top-[5px] w-[247px] h-[165px]">
-            <motion.img 
-              src={imgCar} 
-              alt="" 
-              className="w-full h-full object-contain"
-              animate={{ 
-                x: [0, 1.5, -1, 0],
-                y: [0, -0.5, 0.5, 0]
-              }}
-              transition={{ 
-                repeat: Infinity, 
-                duration: 1.6,
-                ease: "linear"
-              }}
-            />
-          </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="w-[361px] h-[250px] rounded-[20px] border border-[rgba(19,20,23,0.05)] px-[32px] py-[20px] flex flex-col items-center shrink-0"
-          style={{
-            background: 'linear-gradient(90deg, #fff 0%, #edeef2 100%)',
-            filter: 'drop-shadow(0px 6px 12px rgba(0,0,0,0.08))',
-          }}
-        >
-          <div className="w-full h-[36px] bg-[#e9e9eb] rounded-[12px] p-[3px] flex shrink-0">
-            {cameraViews.map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`flex-1 rounded-[9px] text-[13px] transition-all duration-200 ${
-                  activeTab === tab
-                    ? 'bg-[#f7f8fa] font-semibold text-[#131417] shadow-[0px_0.668px_0.668px_0px_rgba(0,0,0,0.08),0px_2.673px_10.691px_0px_rgba(0,0,0,0.16)]'
-                    : 'font-medium text-[rgba(19,20,23,0.84)]'
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-          <div className="w-full flex-1 mt-[15px] rounded-[12px] overflow-hidden relative">
-            <img src={imgMap} alt="" className="w-full h-full object-cover" />
-          </div>
-        </motion.div>
-      </motion.div>
-
-      <div className="absolute left-[421px] top-[79px] w-[1499px] h-[880px] z-10">
-        <img src={imgMap} alt="" className="w-full h-full object-cover" />
-        
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-           <img src={vectorRoad} alt="" className="w-[1000px] opacity-40" />
-           <div className="absolute top-[40%] left-[45%] flex flex-col items-center">
-              <motion.img 
-                animate={{ scale: [1, 1.1, 1] }}
-                transition={{ repeat: Infinity, duration: 2 }}
-                src={vectorCursor} alt="" className="w-[40px]" />
-           </div>
         </div>
-      </div>
+
+        {/* Bottom Speed & ADAS Widget — Figma: left-31 top-359 w-408 */}
+        <div className="pointer-events-auto absolute bg-gradient-to-r border border-[rgba(19,20,23,0.1)] border-solid drop-shadow-[0px_6px_12px_rgba(0,0,0,0.08)] flex flex-col from-white gap-[10px] items-start left-[31px] p-[32px] rounded-[32px] to-[#edeef2] top-[359px] w-[408px]">
+          <div className="flex items-baseline shrink-0">
+            <span className="font-['Pretendard:Medium',sans-serif] leading-[72px] text-[#131417] text-[66px]">{currentSpeed}</span>
+            <span className="font-['Pretendard:Regular',sans-serif] leading-[37px] ml-[8px] text-[#99a1af] text-[22px]">km/h</span>
+          </div>
+          <div className="flex flex-col gap-[22px] items-start relative shrink-0 w-full">
+            <div className="h-[260px] opacity-80 relative shrink-0 w-full overflow-hidden rounded-[16px]">
+              <img alt="" className="absolute inset-0 max-w-none object-cover pointer-events-none size-full" src={imgMap} />
+            </div>
+
+            <AnimatePresence mode="wait">
+              {simType === 'roundabout' && simStage !== 'idle' && (
+                <motion.div
+                  key="slider"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 63 }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="w-full shrink-0"
+                >
+                  <SwipeSlider onApprove={handleApproveDetour} />
+                </motion.div>
+              )}
+              {simType === 'aquaplaning' && simStage !== 'idle' && (
+                <motion.div
+                  key="aquaplaning"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 161 }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="w-full shrink-0 overflow-hidden"
+                >
+                  <div className="bg-white border border-[rgba(19,20,23,0.05)] border-solid content-stretch drop-shadow-[0px_12px_6px_rgba(0,0,0,0.11)] flex flex-col gap-[25px] items-start p-[32px] relative rounded-[20px] shrink-0 w-full">
+                    <div className="[word-break:break-word] content-stretch flex flex-col gap-[5px] items-start leading-[0] not-italic relative shrink-0 whitespace-nowrap">
+                      <div className="font-['Pretendard:Regular',sans-serif] relative shrink-0 text-[#131417] text-[0px] tracking-[-0.52px]">
+                        <p className="leading-[1.3] mb-0 text-[26px]">안전 확보를 위해</p>
+                        <p className="text-[26px]">
+                          <span className="[word-break:break-word] font-['Pretendard:Bold',sans-serif] leading-[1.3] not-italic text-[#131417] tracking-[-0.52px]">80km/h</span>
+                          <span className="leading-[1.3]">로 감속</span>
+                        </p>
+                      </div>
+                      <p className="font-['Pretendard:Medium',sans-serif] relative shrink-0 text-[#99a1af] text-[18px] tracking-[-0.36px]">
+                        <span className="leading-[24.666px] tracking-[-0.32px]">약 </span>
+                        <span className="leading-[24.666px] text-[#2d7cf1] tracking-[-0.32px]">3초간 감속</span>
+                        <span className="leading-[24.666px] tracking-[-0.32px]">을 유지합니다.</span>
+                      </p>
+                    </div>
+                    <div className="relative shrink-0 w-[278px] h-[8px] bg-[#f0f0f0] rounded-full overflow-hidden">
+                      <motion.div 
+                        initial={{ width: '100%' }}
+                        animate={{ width: '0%' }}
+                        transition={{ duration: 3, ease: 'linear' }}
+                        className="absolute top-0 left-0 h-full bg-[#2d7cf1] rounded-full" 
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+      </motion.div>
 
       <AnimatePresence>
         {alertConfig && (
@@ -635,17 +551,7 @@ function VehicleHMI() {
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {isBriefingOpen && (
-          <BriefingPanel 
-            onClose={() => setIsBriefingOpen(false)} 
-            simStage={simStage}
-            simType={simType}
-            onApprove={handleApproveDetour}
-            onWait={handleWaitAndRetry}
-          />
-        )}
-      </AnimatePresence>
+
 
       {/* ── Bottom App Bar ────────────────────────────────────── */}
       <div className="bottom-bar">

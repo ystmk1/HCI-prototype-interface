@@ -198,16 +198,19 @@ export default function NavigationApp({
       {/* Window Controls */}
       <div className="absolute top-[30px] right-[40px] flex items-center gap-[16px] z-10">
         <button onClick={() => setMuted(m => !m)}
-          className="w-[48px] h-[48px] rounded-full bg-white border border-[rgba(19,20,23,0.1)] shadow-[0px_4px_12px_rgba(0,0,0,0.05)] hover:bg-[#f7f8fa] transition-all flex items-center justify-center text-[#131417]">
+          className="btn-window-ctrl"
+          aria-label={muted ? "음소거 해제" : "음소거"}>
           {muted ? <VolumeX size={20} /> : <Volume2 size={20} />}
         </button>
         <button onClick={() => setIsFullscreen(!isFullscreen)}
-          className="w-[48px] h-[48px] rounded-full bg-white border border-[rgba(19,20,23,0.1)] shadow-[0px_4px_12px_rgba(0,0,0,0.05)] hover:bg-[#f7f8fa] transition-all flex items-center justify-center text-[#131417]">
+          className="btn-window-ctrl"
+          aria-label={isFullscreen ? "축소" : "최대화"}>
           {isFullscreen ? <Shrink size={20} /> : <Maximize2 size={20} />}
         </button>
         <button onClick={onClose}
-          className="w-[48px] h-[48px] rounded-full bg-white border border-[rgba(19,20,23,0.1)] shadow-[0px_4px_12px_rgba(0,0,0,0.05)] hover:bg-[#f7f8fa] transition-all flex items-center justify-center text-[#131417]">
-          <X size={24} />
+          className="btn-window-ctrl"
+          aria-label="닫기">
+          <X size={20} />
         </button>
       </div>
 
@@ -219,12 +222,12 @@ export default function NavigationApp({
               <button
                 key={tab.id}
                 onClick={() => { setActiveTab(tab.id); setView(tab.id === 'Search' ? 'search' : 'home'); setDestination(null) }}
-                className={`flex items-center rounded-[16px] transition-all ${
-                  activeTab === tab.id ? 'bg-white shadow-[0px_2px_8px_rgba(0,0,0,0.04)] text-[#131417]' : 'text-[#666] hover:bg-[rgba(255,255,255,0.5)]'
-                } ${isNarrow ? 'justify-center w-[68px] h-[60px] mx-auto' : 'px-[20px] py-[16px]'}`}
+                className={`sidebar-tab ${activeTab === tab.id ? 'active' : ''} ${
+                  isNarrow ? 'justify-center w-[68px] h-[60px] mx-auto' : 'px-[20px] py-[16px] w-[228px]'
+                }`}
               >
                 <tab.icon size={22} />
-                {!isNarrow && <span className={`ml-[16px] text-[18px] ${activeTab === tab.id ? 'font-medium' : ''}`}>{tab.id}</span>}
+                {!isNarrow && <span className="ml-[16px] text-[18px]">{tab.id}</span>}
               </button>
             ))}
           </div>
@@ -246,7 +249,7 @@ export default function NavigationApp({
             <div className="flex flex-col h-full">
               <button
                 onClick={() => { setDestination(null); setView(activeTab === 'Search' ? 'search' : 'home'); setPreviewRoute(null) }}
-                className="self-start flex items-center gap-2 text-[#99a1af] hover:text-[#131417] mb-[24px] text-[18px] font-medium"
+                className="self-start btn-secondary !h-[48px] !px-4 mb-[24px] !rounded-[12px]"
               >
                 <ArrowLeft size={20} /> 뒤로
               </button>
@@ -305,8 +308,7 @@ export default function NavigationApp({
 
                   <button
                     onClick={confirmRoute}
-                    className="w-full py-[22px] rounded-full text-white text-[22px] font-semibold flex items-center justify-center gap-3 shadow-[0_10px_24px_rgba(45,124,241,0.32)]"
-                    style={{ background: 'linear-gradient(-90deg, #77a9e8 0%, #2d7cf1 100%)' }}
+                    className="btn-primary w-full !h-[64px] !rounded-[16px] text-[20px] !shadow-[0_10px_24px_rgba(45,124,241,0.32)]"
                   >
                     <NavIcon size={22} /> {ROUTE_VARIANTS[routeIdx].label} 경로로 안내 시작
                   </button>
@@ -322,14 +324,14 @@ export default function NavigationApp({
           ) : (
             <>
               {/* Search bar */}
-              <div className="flex items-center gap-[12px] bg-white border border-[rgba(19,20,23,0.08)] rounded-full px-[24px] py-[16px] mb-[28px] shadow-[0px_2px_8px_rgba(0,0,0,0.04)]">
-                <Search size={22} className="text-[#99a1af] shrink-0" />
+              <div className="search-container mb-[28px]">
+                <Search size={22} className="text-[#99a1af] mr-3 shrink-0" />
                 <input
                   type="text"
                   value={searchText}
                   onChange={(e) => setSearchText(e.target.value)}
                   placeholder="어디로 갈까요?"
-                  className="flex-1 text-[20px] outline-none bg-transparent placeholder:text-[#99a1af]"
+                  className="flex-1 text-[18px] outline-none bg-transparent placeholder:text-[#99a1af]"
                 />
               </div>
 
@@ -341,12 +343,14 @@ export default function NavigationApp({
                       <button
                         key={c.id}
                         onClick={() => setSelectedCategory(isActive ? null : c.id)}
-                        className={`flex items-center gap-[8px] px-[18px] py-[12px] rounded-full border transition-all shrink-0 ${
-                          isActive ? 'bg-[#131417] text-white border-[#131417]' : 'bg-white text-[#131417] border-[rgba(19,20,23,0.1)] hover:bg-[#f7f8fa]'
+                        className={`flex items-center gap-[8px] px-[18px] py-[10px] h-[44px] rounded-full border transition-all shrink-0 ${
+                          isActive 
+                            ? 'bg-[#131417] text-white border-[#131417]' 
+                            : 'bg-white text-[#131417] border-[rgba(19,20,23,0.1)] hover:bg-[#f7f8fa]'
                         }`}
                       >
                         <c.icon size={18} style={{ color: isActive ? '#fff' : c.color }} />
-                        <span className="text-[16px] font-medium">{c.label}</span>
+                        <span className="text-[15px] font-medium">{c.label}</span>
                       </button>
                     )
                   })}
@@ -379,14 +383,14 @@ export default function NavigationApp({
                       <button
                         key={p.id}
                         onClick={() => pickDestination(p)}
-                        className="w-full flex items-center gap-[16px] p-[18px] bg-white border border-[rgba(19,20,23,0.06)] rounded-[20px] hover:border-[#2d7cf1] hover:shadow-[0px_4px_16px_rgba(45,124,241,0.08)] transition-all text-left"
+                        className="w-full list-item flex items-center gap-[16px] !p-[16px] text-left mb-[8px]"
                       >
-                        <div className="w-[48px] h-[48px] rounded-[14px] bg-[#f7f8fa] flex items-center justify-center shrink-0">
+                        <div className="w-[48px] h-[48px] rounded-[14px] bg-[#f7f8fa] flex items-center justify-center shrink-0 border border-[rgba(19,20,23,0.06)]">
                           <Icon size={22} className="text-[#131417]" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-[18px] font-semibold text-[#131417] truncate">{p.name}</p>
-                          <p className="text-[14px] text-[#99a1af] truncate">{p.addr}</p>
+                          <p className="text-[15px] text-[#99a1af] truncate">{p.addr}</p>
                         </div>
                         <button onClick={(e) => { e.stopPropagation(); toggleFav(p.id) }} className="shrink-0 p-[6px] hover:scale-110 transition-transform">
                           <Star size={20} className={isFav ? 'text-[#FFCC00] fill-[#FFCC00]' : 'text-[#d1d5db]'} />

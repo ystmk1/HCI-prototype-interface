@@ -46,16 +46,21 @@ const ROUTE_VARIANTS = [
 
 export default function NavigationApp({
   isFullscreen, setIsFullscreen, isBriefingOpen, onClose,
-  activeRoute, setActiveRoute, currentLocation,
+  activeRoute, setActiveRoute, currentLocation, initialView,
 }) {
-  const [activeTab, setActiveTab] = useState('Home')
-  const [view, setView] = useState('home') // home | search | route
+  const [activeTab, setActiveTab] = useState(initialView === 'search' ? 'Search' : 'Home')
+  const [view, setView] = useState(initialView === 'search' ? 'search' : 'home') // home | search | route
   const [destination, setDestination] = useState(null)
   const [routeIdx, setRouteIdx] = useState(0)
   const [searchText, setSearchText] = useState('')
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [favIds, setFavIds] = useState(new Set([1, 2]))
   const [muted, setMuted] = useState(false)
+
+  // Kakao Places real keyword search (debounced)
+  const [kakaoResults, setKakaoResults] = useState([])
+  const [searching, setSearching] = useState(false)
+  const placesServiceRef = useRef(null)
 
   // OSRM preview route fetched when a destination is chosen.
   const [previewRoute, setPreviewRoute] = useState(null) // { distance, duration, geometry }
@@ -96,6 +101,53 @@ export default function NavigationApp({
     setRouteIdx(0)
     setView('route')
   }
+
+  // ── Kakao Places keyword search (real, debounced) ──────────
+  // The SDK is loaded the moment the user types anything so the search bar
+  // works even before the fullscreen map mounts. Results are mapped to the
+  // same shape as static PLACES so picking one flows through the existing
+  // OSRM → confirm pipeline.
+  useEffect(() => {
+    const q = searchText.trim()
+    if (!q || view !== 'search') {
+      setKakaoResults([])
+      setSearching(false)
+      return
+    }
+    if (!KAKAO_JS_KEY) return
+    let cancelled = false
+    setSearching(true)
+    const timer = setTimeout(() => {
+      loadKakaoSdk(KAKAO_JS_KEY)
+        .then((kakao) => {
+          if (cancelled) return
+          if (!placesServiceRef.current) {
+            placesServiceRef.current = new kakao.maps.services.Places()
+          }
+          placesServiceRef.current.keywordSearch(q, (data, status) => {
+            if (cancelled) return
+            setSearching(false)
+            if (status !== kakao.maps.services.Status.OK) {
+              setKakaoResults([])
+              return
+            }
+            setKakaoResults(
+              data.slice(0, 12).map((p) => ({
+                id: `k_${p.id}`,
+                name: p.place_name,
+                addr: p.road_address_name || p.address_name || '',
+                category: p.category_group_name || '',
+                lat: parseFloat(p.y),
+                lng: parseFloat(p.x),
+                kakao: true,
+              }))
+            )
+          })
+        })
+        .catch(() => { if (!cancelled) { setSearching(false); setKakaoResults([]) } })
+    }, 280) // debounce
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [searchText, view])
 
   // ── Fetch OSRM route when a destination is selected ─────────
   useEffect(() => {
@@ -357,7 +409,7 @@ export default function NavigationApp({
                 </div>
               )}
 
-              {view === 'search' && (
+              {view === 'search' && !searchText.trim() && (
                 <div className="mb-[24px]">
                   <p className="text-[14px] font-semibold text-[#99a1af] mb-[12px] uppercase tracking-wider">최근 검색</p>
                   <div className="flex flex-wrap gap-[8px]">
@@ -372,33 +424,71 @@ export default function NavigationApp({
               )}
 
               <div className="flex-1 overflow-y-auto pr-[8px] -mr-[8px]">
-                <p className="text-[14px] font-semibold text-[#99a1af] mb-[12px] uppercase tracking-wider">
-                  {selectedCategory ? CATEGORIES.find(c => c.id === selectedCategory)?.label : activeTab === 'Favorites' ? '즐겨찾기' : '추천 장소'}
-                </p>
-                <div className="flex flex-col gap-[10px]">
-                  {(activeTab === 'Favorites' ? PLACES.filter(p => favIds.has(p.id)) : filtered).map((p) => {
-                    const Icon = typeof p.icon === 'function' ? p.icon : MapPin
-                    const isFav = favIds.has(p.id)
-                    return (
-                      <button
-                        key={p.id}
-                        onClick={() => pickDestination(p)}
-                        className="w-full list-item flex items-center gap-[16px] !p-[16px] text-left mb-[8px]"
-                      >
-                        <div className="w-[48px] h-[48px] rounded-[14px] bg-[#f7f8fa] flex items-center justify-center shrink-0 border border-[rgba(19,20,23,0.06)]">
-                          <Icon size={22} className="text-[#131417]" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[18px] font-semibold text-[#131417] truncate">{p.name}</p>
-                          <p className="text-[15px] text-[#99a1af] truncate">{p.addr}</p>
-                        </div>
-                        <button onClick={(e) => { e.stopPropagation(); toggleFav(p.id) }} className="shrink-0 p-[6px] hover:scale-110 transition-transform">
-                          <Star size={20} className={isFav ? 'text-[#FFCC00] fill-[#FFCC00]' : 'text-[#d1d5db]'} />
+                {view === 'search' && searchText.trim() ? (
+                  <>
+                    <p className="text-[14px] font-semibold text-[#99a1af] mb-[12px] uppercase tracking-wider flex items-center gap-2">
+                      카카오 검색 결과
+                      {searching && <Loader2 size={14} className="animate-spin" />}
+                    </p>
+                    {!KAKAO_JS_KEY && (
+                      <p className="text-[14px] text-[#99a1af] py-[20px]">
+                        VITE_KAKAO_JS_KEY 미설정 — 실 검색을 쓰려면 .env.local 에 키를 추가해 주세요.
+                      </p>
+                    )}
+                    {KAKAO_JS_KEY && !searching && kakaoResults.length === 0 && (
+                      <p className="text-[14px] text-[#99a1af] py-[20px]">검색 결과가 없습니다.</p>
+                    )}
+                    <div className="flex flex-col gap-[10px]">
+                      {kakaoResults.map((p) => (
+                        <button
+                          key={p.id}
+                          onClick={() => pickDestination(p)}
+                          className="w-full list-item flex items-center gap-[16px] !p-[16px] text-left mb-[8px]"
+                        >
+                          <div className="w-[48px] h-[48px] rounded-[14px] bg-[#f7f8fa] flex items-center justify-center shrink-0 border border-[rgba(19,20,23,0.06)]">
+                            <MapPin size={22} className="text-[#131417]" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[18px] font-semibold text-[#131417] truncate">{p.name}</p>
+                            <p className="text-[15px] text-[#99a1af] truncate">
+                              {p.category ? `${p.category} · ` : ''}{p.addr}
+                            </p>
+                          </div>
                         </button>
-                      </button>
-                    )
-                  })}
-                </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-[14px] font-semibold text-[#99a1af] mb-[12px] uppercase tracking-wider">
+                      {selectedCategory ? CATEGORIES.find(c => c.id === selectedCategory)?.label : activeTab === 'Favorites' ? '즐겨찾기' : '추천 장소'}
+                    </p>
+                    <div className="flex flex-col gap-[10px]">
+                      {(activeTab === 'Favorites' ? PLACES.filter(p => favIds.has(p.id)) : filtered).map((p) => {
+                        const Icon = typeof p.icon === 'function' ? p.icon : MapPin
+                        const isFav = favIds.has(p.id)
+                        return (
+                          <button
+                            key={p.id}
+                            onClick={() => pickDestination(p)}
+                            className="w-full list-item flex items-center gap-[16px] !p-[16px] text-left mb-[8px]"
+                          >
+                            <div className="w-[48px] h-[48px] rounded-[14px] bg-[#f7f8fa] flex items-center justify-center shrink-0 border border-[rgba(19,20,23,0.06)]">
+                              <Icon size={22} className="text-[#131417]" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[18px] font-semibold text-[#131417] truncate">{p.name}</p>
+                              <p className="text-[15px] text-[#99a1af] truncate">{p.addr}</p>
+                            </div>
+                            <button onClick={(e) => { e.stopPropagation(); toggleFav(p.id) }} className="shrink-0 p-[6px] hover:scale-110 transition-transform">
+                              <Star size={20} className={isFav ? 'text-[#FFCC00] fill-[#FFCC00]' : 'text-[#d1d5db]'} />
+                            </button>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </>
+                )}
               </div>
             </>
           )}

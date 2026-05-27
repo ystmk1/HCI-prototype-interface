@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Flame, Snowflake, Wind, Volume, Volume1, Volume2, VolumeX } from 'lucide-react'
+import { Flame, Snowflake, Wind, Volume, Volume1, Volume2, VolumeX, Search } from 'lucide-react'
 
 import { ExperimentProvider, useExperiment } from './context/ExperimentContext'
 import OperatorConsole from './components/OperatorConsole'
@@ -55,6 +55,12 @@ function VehicleHMI() {
   const [volumeOpen, setVolumeOpen] = useState(false)
   const volumeCloseTimer = useRef(null)
   const [isControlPanelOpen, setIsControlPanelOpen] = useState(false)
+  const [navInitialView, setNavInitialView] = useState(null) // 'search' when opened from greeting
+
+  const openNavSearch = () => {
+    setNavInitialView('search')
+    setActiveApp('Navigation')
+  }
   // activeRoute is set by NavigationApp after the user confirms a destination.
   // The left widget mirrors it; null means "no destination yet".
   const [activeRoute, setActiveRoute] = useState(null)
@@ -350,8 +356,15 @@ function VehicleHMI() {
         transition={{ duration: 0.5, ease: "easeInOut" }}
         className="absolute inset-0 z-20 pointer-events-none"
       >
-        {/* Top Destination Widget — Figma node 244:23491 (left-33 top-122 w-406) */}
-        <div className="pointer-events-auto absolute bg-gradient-to-r from-white to-[#edeef2] border border-[rgba(19,20,23,0.1)] drop-shadow-[0px_6px_12px_rgba(0,0,0,0.08)] flex flex-col gap-[12px] items-center left-[33px] p-[32px] rounded-[32px] top-[122px] w-[406px]">
+        {/* Left widget column — cards stack from top with consistent gap so the
+            layout breathes naturally whether the destination card is in the
+            short greeting state or the taller route state. */}
+        <motion.div
+          layout
+          className="absolute left-[31px] top-[122px] w-[408px] flex flex-col gap-[20px] pointer-events-none"
+        >
+        {/* Top Destination Widget — Figma node 244:23491 */}
+        <motion.div layout className="pointer-events-auto bg-gradient-to-r from-white to-[#edeef2] border border-[rgba(19,20,23,0.1)] drop-shadow-[0px_6px_12px_rgba(0,0,0,0.08)] flex flex-col gap-[12px] items-center p-[32px] rounded-[32px] w-full">
           {(() => {
             const hasRoute = !!activeRoute
             const destName = hasRoute ? activeRoute.destination.name : '어디로 갈까요?'
@@ -364,45 +377,80 @@ function VehicleHMI() {
             return (
               <>
                 {/* Top text block — Figma: font-Medium, items-start, leading-1.4 */}
-                <div className="flex flex-col items-start leading-[1.4] w-[294px]">
-                  <p className="font-medium text-[#99a1af] text-[22px] w-full">
-                    {labelText}
-                  </p>
-                  <p className="font-medium text-[#131417] text-[26px] tracking-[-1px] w-full truncate">
-                    {destName}
-                  </p>
+                <div className="flex items-center leading-[1.4] w-[294px] gap-[12px]">
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <p className="font-medium text-[#99a1af] text-[22px]">
+                      {labelText}
+                    </p>
+                    <p className="font-medium text-[#131417] text-[26px] tracking-[-1px] truncate">
+                      {destName}
+                    </p>
+                  </div>
+                  {!hasRoute && (
+                    <motion.button
+                      whileTap={{ scale: 0.92 }}
+                      whileHover={{ y: -1 }}
+                      onClick={openNavSearch}
+                      aria-label="경로 검색"
+                      className="shrink-0 w-[56px] h-[56px] rounded-full bg-[#f7f8fa] border border-[rgba(19,20,23,0.2)] flex items-center justify-center drop-shadow-[0px_6px_12px_rgba(0,0,0,0.08)]"
+                    >
+                      <Search size={22} color="#131417" strokeWidth={2} />
+                    </motion.button>
+                  )}
                 </div>
 
                 {/* Route + ETA — Figma uses absolute positioning inside w-294 h-64 */}
-                {hasRoute && (
-                  <div className="relative h-[64px] w-[294px]">
-                    {/* Route SVG at left-13.5 top-0 (h-66 overflows container slightly) */}
-                    <div className="absolute h-[66px] left-[13.5px] top-0 w-[106px]">
-                      <svg width="100%" height="100%" viewBox="0 0 106 66" preserveAspectRatio="xMidYMid meet">
-                        <path d={buildRouteSvg(activeRoute.geometry, 106, 66, 8).d} stroke="#2d7cf1" strokeWidth={3} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={0.95} />
-                      </svg>
-                    </div>
-                    {/* ETA group at left-166 */}
-                    <div className="absolute left-[166px] top-0">
-                      <p className="font-normal leading-[1.32] text-[#99a1af] text-[22px]">
-                        도착예정
-                      </p>
-                      <div className="mt-[8px] flex items-baseline gap-[4px] whitespace-nowrap">
-                        <span className="font-semibold text-[34px] tracking-[-0.68px] text-[#131417]">{timeOnly}</span>
-                        <span className="font-normal text-[22px] tracking-[-0.44px] text-[#99a1af]">{ampm}</span>
+                {hasRoute && (() => {
+                  const svgPath = buildRouteSvg(activeRoute.geometry, 106, 66, 8)
+                  const pathId = `route-path-${activeRoute.departureIso}`
+                  // Negative begin offsets the SVG animation to the current
+                  // elapsed time so the dot appears already in progress.
+                  const now = Date.now()
+                  const startMs = new Date(activeRoute.departureIso).getTime()
+                  const elapsedSec = Math.max(0, (now - startMs) / 1000)
+                  return (
+                    <div className="relative h-[64px] w-[294px]">
+                      {/* Route SVG at left-13.5 top-0 (h-66 overflows container slightly) */}
+                      <div className="absolute h-[66px] left-[13.5px] top-0 w-[106px]">
+                        <svg width="100%" height="100%" viewBox="0 0 106 66" preserveAspectRatio="xMidYMid meet">
+                          <path id={pathId} d={svgPath.d} stroke="#2d7cf1" strokeWidth={3} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={0.95} />
+                          {/* Origin marker (static, at start of path) */}
+                          <circle cx={svgPath.start[0]} cy={svgPath.start[1]} r={3.5} fill="#fff" stroke="#2d7cf1" strokeWidth={1.8} />
+                          {/* Moving progress dot — travels start → end over the route duration */}
+                          <circle r={4} fill="#2d7cf1" stroke="#fff" strokeWidth={1.5}>
+                            <animateMotion
+                              dur={`${Math.max(60, activeRoute.durationSec)}s`}
+                              begin={`-${elapsedSec}s`}
+                              fill="freeze"
+                              repeatCount="1"
+                              rotate="auto"
+                            >
+                              <mpath href={`#${pathId}`} />
+                            </animateMotion>
+                          </circle>
+                        </svg>
+                      </div>
+                      {/* ETA group at left-166 — tightened gap between label and value */}
+                      <div className="absolute left-[166px] top-[4px]">
+                        <p className="font-normal leading-[1.2] text-[#99a1af] text-[20px]">
+                          도착예정
+                        </p>
+                        <div className="flex items-baseline gap-[4px] whitespace-nowrap leading-[1.05]">
+                          <span className="font-semibold text-[32px] tracking-[-0.64px] text-[#131417]">{timeOnly}</span>
+                          <span className="font-normal text-[20px] tracking-[-0.4px] text-[#99a1af]">{ampm}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )
+                })()}
               </>
             )
           })()}
-        </div>
+        </motion.div>
 
-        {/* Bottom Speed & ADAS Widget — Figma: left-31 top-359 w-408
-            ADAS h reduced from 260 → 200 so the hydroplaning warning card
-            no longer overflows the 121px-tall GNB at the screen bottom. */}
-        <div className="pointer-events-auto absolute bg-gradient-to-r from-white to-[#edeef2] border border-[rgba(19,20,23,0.1)] drop-shadow-[0px_6px_12px_rgba(0,0,0,0.08)] flex flex-col gap-[24px] items-start left-[31px] p-[32px] rounded-[32px] top-[359px] w-[408px]">
+        {/* Bottom Speed & ADAS Widget — sits below the destination card with a
+            consistent 20px gap (managed by the parent flex column). */}
+        <motion.div layout className="pointer-events-auto bg-gradient-to-r from-white to-[#edeef2] border border-[rgba(19,20,23,0.1)] drop-shadow-[0px_6px_12px_rgba(0,0,0,0.08)] flex flex-col gap-[24px] items-start p-[32px] rounded-[32px] w-full">
           <div className="flex items-baseline shrink-0">
             <span className="font-medium leading-[1.1] text-[#131417] text-[66px] tracking-[-1.6px]">{currentSpeed}</span>
             <span className="font-normal leading-[37px] ml-[8px] text-[#99a1af] text-[22px]">km/h</span>
@@ -462,60 +510,88 @@ function VehicleHMI() {
               )}
             </AnimatePresence>
           </div>
-        </div>
+        </motion.div>
+        </motion.div>
       </motion.div>
 
-      {/* ── Top-edge ambient shimmer (replaces the center alert pill).
-          Voice-animation-style gradient at the very top of the screen,
-          color shifts per simStage, gentle wavering motion. */}
+      {/* ── Top-edge ambient shimmer — Gaussian-shaped, centered.
+          Width ≈ 1/3 of screen (640/1920). The bell shape is achieved
+          with a radial mask: tallest at horizontal center, tapering on
+          both sides. Color comes from simStage; alert text overlays
+          inside the bright center where the mask is fully opaque. */}
       <AnimatePresence>
         {alertConfig && (
           <motion.div
             key="top-shimmer"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.6, ease: 'easeOut' }}
-            className="absolute top-0 left-0 right-0 h-[140px] z-[60] pointer-events-none overflow-hidden"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.5, ease: 'easeOut' }}
+            className="absolute top-0 left-1/2 -translate-x-1/2 w-[640px] h-[160px] z-[60] pointer-events-none"
           >
-            {/* Base color veil — strongest at the very top edge, fades to nothing */}
+            {/* Shimmer surface — masked into a bell curve so edges taper */}
             <div
-              className="absolute inset-0"
+              className="absolute inset-0 overflow-hidden"
               style={{
-                background: `linear-gradient(180deg, ${alertConfig.dotColor} 0%, ${alertConfig.dotColor}55 35%, ${alertConfig.dotColor}00 100%)`,
-                opacity: 0.55,
+                maskImage:       'radial-gradient(ellipse 55% 100% at 50% 0%, #000 0%, #000 35%, rgba(0,0,0,0.45) 65%, transparent 100%)',
+                WebkitMaskImage: 'radial-gradient(ellipse 55% 100% at 50% 0%, #000 0%, #000 35%, rgba(0,0,0,0.45) 65%, transparent 100%)',
               }}
-            />
-            {/* Wave 1 — slow horizontal drift, radial blob */}
-            <motion.div
-              className="absolute -inset-x-[10%] -top-[30%] h-[200%]"
-              style={{
-                background: `radial-gradient(ellipse 50% 50% at 30% 30%, ${alertConfig.dotColor}aa 0%, transparent 60%)`,
-                mixBlendMode: 'screen',
-              }}
-              animate={{ x: ['-6%', '6%', '-6%'], opacity: [0.55, 0.85, 0.55] }}
-              transition={{ duration: 5.5, repeat: Infinity, ease: 'easeInOut' }}
-            />
-            {/* Wave 2 — opposite phase, brighter highlight */}
-            <motion.div
-              className="absolute -inset-x-[10%] -top-[20%] h-[180%]"
-              style={{
-                background: `radial-gradient(ellipse 40% 50% at 70% 25%, ${alertConfig.dotColor}cc 0%, transparent 55%)`,
-                mixBlendMode: 'screen',
-              }}
-              animate={{ x: ['5%', '-5%', '5%'], opacity: [0.4, 0.75, 0.4] }}
-              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 0.8 }}
-            />
-            {/* Wave 3 — subtle wide sweep */}
-            <motion.div
-              className="absolute inset-0"
-              style={{
-                background: `linear-gradient(90deg, transparent 0%, ${alertConfig.dotColor}33 50%, transparent 100%)`,
-                mixBlendMode: 'screen',
-              }}
-              animate={{ x: ['-20%', '20%', '-20%'] }}
-              transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}
-            />
+            >
+              {/* Base color veil — strongest at the top, fades downward */}
+              <div
+                className="absolute inset-0"
+                style={{
+                  background: `linear-gradient(180deg, ${alertConfig.dotColor} 0%, ${alertConfig.dotColor}66 50%, ${alertConfig.dotColor}00 100%)`,
+                  opacity: 0.6,
+                }}
+              />
+              {/* Wave 1 — slow drift, radial blob, screen-blend */}
+              <motion.div
+                className="absolute -inset-x-[10%] -top-[30%] h-[200%]"
+                style={{
+                  background: `radial-gradient(ellipse 50% 50% at 30% 30%, ${alertConfig.dotColor}aa 0%, transparent 60%)`,
+                  mixBlendMode: 'screen',
+                }}
+                animate={{ x: ['-6%', '6%', '-6%'], opacity: [0.55, 0.85, 0.55] }}
+                transition={{ duration: 5.5, repeat: Infinity, ease: 'easeInOut' }}
+              />
+              {/* Wave 2 — opposite phase, brighter highlight */}
+              <motion.div
+                className="absolute -inset-x-[10%] -top-[20%] h-[180%]"
+                style={{
+                  background: `radial-gradient(ellipse 40% 50% at 70% 25%, ${alertConfig.dotColor}cc 0%, transparent 55%)`,
+                  mixBlendMode: 'screen',
+                }}
+                animate={{ x: ['5%', '-5%', '5%'], opacity: [0.45, 0.8, 0.45] }}
+                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 0.8 }}
+              />
+              {/* Wave 3 — subtle horizontal sweep */}
+              <motion.div
+                className="absolute inset-0"
+                style={{
+                  background: `linear-gradient(90deg, transparent 0%, ${alertConfig.dotColor}44 50%, transparent 100%)`,
+                  mixBlendMode: 'screen',
+                }}
+                animate={{ x: ['-20%', '20%', '-20%'] }}
+                transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}
+              />
+            </div>
+
+            {/* Alert text — sits in the bright center of the bell, above status bar */}
+            <div className="absolute top-[28px] left-0 right-0 flex items-center justify-center gap-[10px]">
+              <motion.div
+                animate={alertConfig.dotAnimate}
+                transition={alertConfig.dotTransition}
+                className="w-[10px] h-[10px] rounded-full shadow-[0_0_8px_rgba(255,255,255,0.6)]"
+                style={{ backgroundColor: alertConfig.dotColor }}
+              />
+              <span
+                className="text-[18px] font-semibold tracking-[-0.3px] text-[#131417]"
+                style={{ textShadow: '0 1px 2px rgba(255,255,255,0.4)' }}
+              >
+                {alertConfig.text}
+              </span>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -572,9 +648,11 @@ function VehicleHMI() {
             isBriefingOpen={isBriefingOpen}
             activeRoute={activeRoute}
             setActiveRoute={setActiveRoute}
+            initialView={navInitialView}
             onClose={() => {
               setActiveApp(null)
               setIsNavigationFullscreen(false)
+              setNavInitialView(null)
             }}
           />
         )}

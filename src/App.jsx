@@ -568,11 +568,13 @@ function VehicleHMI() {
         </motion.div>
       </motion.div>
 
-      {/* ── Top-edge ambient shimmer — Gaussian-shaped, centered.
-          Width ≈ 1/3 of screen (640/1920). The bell shape is achieved
-          with a radial mask: tallest at horizontal center, tapering on
-          both sides. Color comes from simStage; alert text overlays
-          inside the bright center where the mask is fully opaque. */}
+      {/* ── Top-edge ambient shimmer — flat bell, centered on screen.
+          Width ~600px (~31% of 1920), height 96px so the bell sits
+          flat against the top instead of reading as a hemisphere.
+          All wave layers are symmetric around horizontal center so
+          the glow doesn't bias to one side. Alert text uses its own
+          backdrop-blurred pill for guaranteed legibility against any
+          stage color. */}
       <AnimatePresence>
         {alertConfig && (
           <motion.div
@@ -581,68 +583,56 @@ function VehicleHMI() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.5, ease: 'easeOut' }}
-            className="absolute top-0 left-1/2 -translate-x-1/2 w-[640px] h-[160px] z-[60] pointer-events-none"
+            className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[96px] z-[60] pointer-events-none"
           >
-            {/* Shimmer surface — masked into a bell curve so edges taper */}
+            {/* Shimmer surface — bell-curve mask: tall at center, fast falloff */}
             <div
               className="absolute inset-0 overflow-hidden"
               style={{
-                maskImage:       'radial-gradient(ellipse 55% 100% at 50% 0%, #000 0%, #000 35%, rgba(0,0,0,0.45) 65%, transparent 100%)',
-                WebkitMaskImage: 'radial-gradient(ellipse 55% 100% at 50% 0%, #000 0%, #000 35%, rgba(0,0,0,0.45) 65%, transparent 100%)',
+                maskImage:       'radial-gradient(ellipse 50% 100% at 50% 0%, #000 0%, #000 20%, rgba(0,0,0,0.55) 55%, transparent 95%)',
+                WebkitMaskImage: 'radial-gradient(ellipse 50% 100% at 50% 0%, #000 0%, #000 20%, rgba(0,0,0,0.55) 55%, transparent 95%)',
               }}
             >
               {/* Base color veil — strongest at the top, fades downward */}
               <div
                 className="absolute inset-0"
                 style={{
-                  background: `linear-gradient(180deg, ${alertConfig.dotColor} 0%, ${alertConfig.dotColor}66 50%, ${alertConfig.dotColor}00 100%)`,
-                  opacity: 0.6,
+                  background: `linear-gradient(180deg, ${alertConfig.dotColor} 0%, ${alertConfig.dotColor}66 60%, ${alertConfig.dotColor}00 100%)`,
+                  opacity: 0.55,
                 }}
               />
-              {/* Wave 1 — slow drift, radial blob, screen-blend */}
+              {/* Wave 1 — centered radial blob, gentle horizontal sway */}
               <motion.div
-                className="absolute -inset-x-[10%] -top-[30%] h-[200%]"
+                className="absolute -inset-x-[10%] -top-[40%] h-[200%]"
                 style={{
-                  background: `radial-gradient(ellipse 50% 50% at 30% 30%, ${alertConfig.dotColor}aa 0%, transparent 60%)`,
+                  background: `radial-gradient(ellipse 35% 60% at 50% 25%, ${alertConfig.dotColor}cc 0%, transparent 65%)`,
                   mixBlendMode: 'screen',
                 }}
-                animate={{ x: ['-6%', '6%', '-6%'], opacity: [0.55, 0.85, 0.55] }}
+                animate={{ x: ['-4%', '4%', '-4%'], opacity: [0.55, 0.85, 0.55] }}
                 transition={{ duration: 5.5, repeat: Infinity, ease: 'easeInOut' }}
               />
-              {/* Wave 2 — opposite phase, brighter highlight */}
+              {/* Wave 2 — slightly smaller, counter-phase, also centered */}
               <motion.div
-                className="absolute -inset-x-[10%] -top-[20%] h-[180%]"
+                className="absolute -inset-x-[10%] -top-[30%] h-[180%]"
                 style={{
-                  background: `radial-gradient(ellipse 40% 50% at 70% 25%, ${alertConfig.dotColor}cc 0%, transparent 55%)`,
+                  background: `radial-gradient(ellipse 28% 55% at 50% 30%, ${alertConfig.dotColor}aa 0%, transparent 60%)`,
                   mixBlendMode: 'screen',
                 }}
-                animate={{ x: ['5%', '-5%', '5%'], opacity: [0.45, 0.8, 0.45] }}
+                animate={{ x: ['3%', '-3%', '3%'], opacity: [0.4, 0.75, 0.4] }}
                 transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 0.8 }}
-              />
-              {/* Wave 3 — subtle horizontal sweep */}
-              <motion.div
-                className="absolute inset-0"
-                style={{
-                  background: `linear-gradient(90deg, transparent 0%, ${alertConfig.dotColor}44 50%, transparent 100%)`,
-                  mixBlendMode: 'screen',
-                }}
-                animate={{ x: ['-20%', '20%', '-20%'] }}
-                transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}
               />
             </div>
 
-            {/* Alert text — sits in the bright center of the bell, above status bar */}
-            <div className="absolute top-[28px] left-0 right-0 flex items-center justify-center gap-[10px]">
+            {/* Alert text — backdrop-blurred pill keeps the copy readable
+                regardless of stage color, sits in the bright center band. */}
+            <div className="absolute top-[18px] left-1/2 -translate-x-1/2 flex items-center gap-[10px] bg-white/85 backdrop-blur-md px-[18px] py-[8px] rounded-full border border-white/60 shadow-[0_4px_14px_rgba(0,0,0,0.08)]">
               <motion.div
                 animate={alertConfig.dotAnimate}
                 transition={alertConfig.dotTransition}
-                className="w-[10px] h-[10px] rounded-full shadow-[0_0_8px_rgba(255,255,255,0.6)]"
+                className="w-[10px] h-[10px] rounded-full"
                 style={{ backgroundColor: alertConfig.dotColor }}
               />
-              <span
-                className="text-[18px] font-semibold tracking-[-0.3px] text-[#131417]"
-                style={{ textShadow: '0 1px 2px rgba(255,255,255,0.4)' }}
-              >
+              <span className="text-[16px] font-semibold tracking-[-0.3px] text-[#131417] whitespace-nowrap">
                 {alertConfig.text}
               </span>
             </div>

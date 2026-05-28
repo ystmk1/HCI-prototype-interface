@@ -62,11 +62,25 @@ function VehicleHMI() {
     setActiveApp('Navigation')
   }
 
+  // activeRoute is set by NavigationApp after the user confirms a destination.
+  // The left widget mirrors it; null means "no destination yet".
+  const [activeRoute, setActiveRoute] = useState(null)
+  // Tick once a minute so the left widget's remaining-time / arrival values
+  // stay current while a route is active.
+  const [, setRouteTick] = useState(0)
+  useEffect(() => {
+    if (!activeRoute) return
+    const id = setInterval(() => setRouteTick((t) => t + 1), 30_000)
+    return () => clearInterval(id)
+  }, [activeRoute])
+
   // Traffic-congestion pattern for the moving route dot — animateMotion's
   // keyTimes/keyPoints make the dot accelerate, slow, and almost-stop in
   // different segments, so it reads as real-world stop-and-go. Recomputed
   // once per route (keyed on departureIso) so the same trip keeps a
-  // consistent rhythm even as the parent re-renders.
+  // consistent rhythm even as the parent re-renders. Must sit AFTER the
+  // activeRoute declaration above — useMemo runs synchronously during
+  // render, so referencing activeRoute before its `let` binding triggers TDZ.
   const trafficPattern = useMemo(() => {
     if (!activeRoute) return null
     const N = 14
@@ -88,17 +102,6 @@ function VehicleHMI() {
     }
     return { keyTimes: times.join(';'), keyPoints: points.join(';') }
   }, [activeRoute?.departureIso])
-  // activeRoute is set by NavigationApp after the user confirms a destination.
-  // The left widget mirrors it; null means "no destination yet".
-  const [activeRoute, setActiveRoute] = useState(null)
-  // Tick once a minute so the left widget's remaining-time / arrival values
-  // stay current while a route is active.
-  const [, setRouteTick] = useState(0)
-  useEffect(() => {
-    if (!activeRoute) return
-    const id = setInterval(() => setRouteTick((t) => t + 1), 30_000)
-    return () => clearInterval(id)
-  }, [activeRoute])
 
   const openVolume = () => {
     setVolumeOpen(true)

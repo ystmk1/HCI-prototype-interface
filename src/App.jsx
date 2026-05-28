@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Flame, Snowflake, Wind, Volume, Volume1, Volume2, VolumeX, Search } from 'lucide-react'
@@ -61,6 +61,33 @@ function VehicleHMI() {
     setNavInitialView('search')
     setActiveApp('Navigation')
   }
+
+  // Traffic-congestion pattern for the moving route dot — animateMotion's
+  // keyTimes/keyPoints make the dot accelerate, slow, and almost-stop in
+  // different segments, so it reads as real-world stop-and-go. Recomputed
+  // once per route (keyed on departureIso) so the same trip keeps a
+  // consistent rhythm even as the parent re-renders.
+  const trafficPattern = useMemo(() => {
+    if (!activeRoute) return null
+    const N = 14
+    const speeds = []
+    for (let i = 0; i < N; i++) {
+      const r = Math.random()
+      if (r < 0.22) speeds.push(0.08 + Math.random() * 0.15)        // jam / near-stop
+      else if (r < 0.45) speeds.push(1.3 + Math.random() * 0.8)     // burst (clear road)
+      else speeds.push(0.5 + Math.random() * 0.5)                   // cruise
+    }
+    const total = speeds.reduce((a, b) => a + b, 0)
+    let p = 0
+    const times = ['0']
+    const points = ['0']
+    for (let i = 0; i < N; i++) {
+      p += speeds[i] / total
+      times.push(((i + 1) / N).toFixed(3))
+      points.push(Math.min(1, p).toFixed(3))
+    }
+    return { keyTimes: times.join(';'), keyPoints: points.join(';') }
+  }, [activeRoute?.departureIso])
   // activeRoute is set by NavigationApp after the user confirms a destination.
   // The left widget mirrors it; null means "no destination yet".
   const [activeRoute, setActiveRoute] = useState(null)
@@ -403,36 +430,63 @@ function VehicleHMI() {
                 {hasRoute && (() => {
                   const svgPath = buildRouteSvg(activeRoute.geometry, 106, 66, 8)
                   const pathId = `route-path-${activeRoute.departureIso}`
+                  const glowId = `route-glow-${activeRoute.departureIso}`
                   // Negative begin offsets the SVG animation to the current
                   // elapsed time so the dot appears already in progress.
                   const now = Date.now()
                   const startMs = new Date(activeRoute.departureIso).getTime()
                   const elapsedSec = Math.max(0, (now - startMs) / 1000)
+                  // Slow the whole traversal down so the stop-and-go rhythm is
+                  // visible at the widget scale (durationSec can be hours).
+                  const dotDur = Math.max(45, Math.min(activeRoute.durationSec, 240))
                   return (
                     <div className="relative h-[64px] w-[294px]">
                       {/* Route SVG at left-13.5 top-0 (h-66 overflows container slightly) */}
                       <div className="absolute h-[66px] left-[13.5px] top-0 w-[106px]">
-                        <svg width="100%" height="100%" viewBox="0 0 106 66" preserveAspectRatio="xMidYMid meet">
+                        <svg width="100%" height="100%" viewBox="0 0 106 66" preserveAspectRatio="xMidYMid meet" overflow="visible">
+                          <defs>
+                            <radialGradient id={glowId} cx="50%" cy="50%" r="50%">
+                              <stop offset="0%"  stopColor="#7fb3ff" stopOpacity="1" />
+                              <stop offset="55%" stopColor="#2d7cf1" stopOpacity="0.55" />
+                              <stop offset="100%" stopColor="#2d7cf1" stopOpacity="0" />
+                            </radialGradient>
+                          </defs>
+                          {/* Path */}
                           <path id={pathId} d={svgPath.d} stroke="#2d7cf1" strokeWidth={3} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={0.95} />
-                          {/* Origin marker (static, at start of path) */}
-                          <circle cx={svgPath.start[0]} cy={svgPath.start[1]} r={3.5} fill="#fff" stroke="#2d7cf1" strokeWidth={1.8} />
-                          {/* Moving progress dot — travels start → end over the route duration */}
-                          <circle r={4} fill="#2d7cf1" stroke="#fff" strokeWidth={1.5}>
+                          {/* Origin marker — solid blue dot (matches route color) */}
+                          <circle cx={svgPath.start[0]} cy={svgPath.start[1]} r={3.2} fill="#2d7cf1" />
+                          {/* Destination marker — solid red dot */}
+                          <circle cx={svgPath.end[0]} cy={svgPath.end[1]} r={3.6} fill="#e85d5d" />
+                          {/* Moving progress dot — variable speed (keyTimes/keyPoints
+                              simulate stop-and-go), glow + pulse for "일렁일렁" */}
+                          <g>
                             <animateMotion
-                              dur={`${Math.max(60, activeRoute.durationSec)}s`}
+                              dur={`${dotDur}s`}
                               begin={`-${elapsedSec}s`}
                               fill="freeze"
                               repeatCount="1"
-                              rotate="auto"
+                              calcMode="linear"
+                              keyTimes={trafficPattern?.keyTimes}
+                              keyPoints={trafficPattern?.keyPoints}
                             >
                               <mpath href={`#${pathId}`} />
                             </animateMotion>
-                          </circle>
+                            {/* Outer halo — gradient glow, larger pulse */}
+                            <circle r={8} fill={`url(#${glowId})`}>
+                              <animate attributeName="r"       values="7;10.5;7"   dur="1.7s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+                              <animate attributeName="opacity" values="0.55;0.9;0.55" dur="1.7s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+                            </circle>
+                            {/* Inner core — solid, smaller pulse */}
+                            <circle r={3.4} fill="#2d7cf1">
+                              <animate attributeName="r" values="3;3.8;3" dur="1.7s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+                            </circle>
+                          </g>
                         </svg>
                       </div>
-                      {/* ETA group at left-166 — tightened gap between label and value */}
-                      <div className="absolute left-[166px] top-[4px]">
-                        <p className="font-normal leading-[1.2] text-[#99a1af] text-[20px]">
+                      {/* ETA group at left-166 — ~170% line-height between
+                          label and value for comfortable typographic rhythm. */}
+                      <div className="absolute left-[166px] top-0">
+                        <p className="font-normal leading-[1.7] text-[#99a1af] text-[20px]">
                           도착예정
                         </p>
                         <div className="flex items-baseline gap-[4px] whitespace-nowrap leading-[1.05]">

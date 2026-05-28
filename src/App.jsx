@@ -586,7 +586,7 @@ function VehicleHMI() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.5, ease: 'easeOut' }}
-            className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[96px] z-[60] pointer-events-none"
+            className="absolute top-0 inset-x-0 mx-auto w-[600px] h-[96px] z-[60] pointer-events-none"
           >
             {/* Shimmer surface — bell-curve mask: tall at center, fast falloff */}
             <div
@@ -628,7 +628,7 @@ function VehicleHMI() {
 
             {/* Alert text — backdrop-blurred pill keeps the copy readable
                 regardless of stage color, sits in the bright center band. */}
-            <div className="absolute top-[18px] left-1/2 -translate-x-1/2 flex items-center gap-[10px] bg-white/85 backdrop-blur-md px-[18px] py-[8px] rounded-full border border-white/60 shadow-[0_4px_14px_rgba(0,0,0,0.08)]">
+            <div className="absolute top-[18px] inset-x-0 mx-auto w-fit flex items-center gap-[10px] bg-white/85 backdrop-blur-md px-[18px] py-[8px] rounded-full border border-white/60 shadow-[0_4px_14px_rgba(0,0,0,0.08)]">
               <motion.div
                 animate={alertConfig.dotAnimate}
                 transition={alertConfig.dotTransition}

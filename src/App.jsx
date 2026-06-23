@@ -405,40 +405,38 @@ function VehicleHMI() {
               style={{ top: 387, display: 'flex', flexDirection: 'column', alignItems: 'center' }}
             >
               {/* AutopilotStatus pill — 통일된 디자인 (Figma 311:7070 / 310:5239).
-                  Dot 색은 motion으로 부드럽게 전환, 텍스트는 AnimatePresence 로
-                  fade+slide 교체. */}
-              <div
-                className="flex items-center rounded-full"
-                style={{
-                  gap: 11,
-                  padding: '15px 29px',
-                  background: 'rgba(255,255,255,0.85)',
-                  backdropFilter: 'blur(6px)',
-                  WebkitBackdropFilter: 'blur(6px)',
-                  border: '1px solid rgba(255,255,255,0.6)',
-                  boxShadow: '0px 4px 14px rgba(0,0,0,0.08)',
-                  overflow: 'hidden',
-                }}
-              >
-                <motion.span
-                  className="rounded-full shrink-0"
-                  animate={{
-                    backgroundColor: status.color,
-                    boxShadow: `0 0 8px ${status.color}80`,
-                  }}
-                  transition={{ duration: 0.4, ease: 'easeOut' }}
-                  style={{ width: 13, height: 13 }}
-                />
-                <div style={{ position: 'relative', height: 24, overflow: 'hidden' }}>
-                  <AnimatePresence mode="wait">
-                    <motion.span
-                      key={status.text}
-                      initial={{ opacity: 0, x: -6 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: 6 }}
-                      transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                  시퀀스 step 전환 시 pill 컨테이너(배경/도트/텍스트) 전체가 한 덩어리로
+                  cross-fade. 텍스트가 컨테이너 안에서 슬라이드하는 어색함 제거. */}
+              <div style={{ height: 54, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={status.text}
+                    initial={{ opacity: 0, y: -12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -12 }}
+                    transition={{ duration: 0.32, ease: 'easeOut' }}
+                    className="flex items-center rounded-full"
+                    style={{
+                      gap: 11,
+                      padding: '15px 29px',
+                      background: 'rgba(255,255,255,0.85)',
+                      backdropFilter: 'blur(6px)',
+                      WebkitBackdropFilter: 'blur(6px)',
+                      border: '1px solid rgba(255,255,255,0.6)',
+                      boxShadow: '0px 4px 14px rgba(0,0,0,0.08)',
+                    }}
+                  >
+                    <span
+                      className="rounded-full shrink-0"
                       style={{
-                        display: 'inline-block',
+                        width: 13,
+                        height: 13,
+                        background: status.color,
+                        boxShadow: `0 0 8px ${status.color}80`,
+                      }}
+                    />
+                    <span
+                      style={{
                         fontSize: 24,
                         lineHeight: '24px',
                         letterSpacing: '-0.48px',
@@ -448,21 +446,22 @@ function VehicleHMI() {
                       }}
                     >
                       {status.text}
-                    </motion.span>
-                  </AnimatePresence>
-                </div>
+                    </span>
+                  </motion.div>
+                </AnimatePresence>
               </div>
 
               {/* XAI block — pill로부터 15px 간격.
-                  Hero / sub 텍스트는 AnimatePresence 로 fade+slide 전환. */}
+                  Hero 가 먼저 나타나고, sub 는 delay 후 등장 → 시퀀스 step
+                  변할 때 두 라인이 동시에 랜덤 순서로 뜨는 인상 제거. */}
               <div className="flex flex-col items-center" style={{ marginTop: 15 }}>
                 <AnimatePresence mode="wait">
                   <motion.p
                     key={heroText}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 10 }}
-                    transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.3, ease: 'easeOut' }}
                     style={{
                       fontSize: 62,
                       lineHeight: 1.28,
@@ -478,17 +477,18 @@ function VehicleHMI() {
                   </motion.p>
                 </AnimatePresence>
 
-                {/* Sub 영역 — 항상 reservation 공간(높이 63 + mt 6 = 69)을 유지해
-                    null ↔ 텍스트 전환 시 searchbox 점프 방지 */}
+                {/* Sub 영역 — 항상 reservation 공간 유지(높이 63 + mt 6)해
+                    null ↔ 텍스트 전환 시 searchbox 점프 방지. sub 는 hero
+                    가 어느 정도 자리잡은 후(delay 0.2s) 페이드 인. */}
                 <div style={{ marginTop: 6, height: 63, width: '100%', position: 'relative' }}>
                   <AnimatePresence mode="wait">
                     {subText && (
                       <motion.p
                         key={subText}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 10 }}
-                        transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1], delay: 0.05 }}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        transition={{ duration: 0.3, ease: 'easeOut', delay: 0.2 }}
                         style={{
                           fontSize: 42,
                           lineHeight: 1.5,

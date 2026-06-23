@@ -295,7 +295,7 @@ function VehicleHMI() {
             패널은 화면 밖에서 시작해 우측 615 영역으로만 진입 → 겹침 없음. */}
         <motion.button
           animate={{
-            left: activeApp ? 'calc(40% + 326px - 28px)' : 'calc(80% + 156px - 28px)',
+            left: (activeApp || messages.length > 0 || isAITyping) ? 'calc(40% + 326px - 28px)' : 'calc(80% + 156px - 28px)',
           }}
           transition={{ duration: 0.36, ease: [0.16, 1, 0.3, 1] }}
           whileTap={{ scale: 0.94 }}
@@ -309,6 +309,11 @@ function VehicleHMI() {
 
         {(() => {
           const isAppOpen = !!activeApp
+          // 채팅이 한 번이라도 발생하면 layout이 좌측으로 shift — 앱 열린 것과
+          // 동일한 1305 캔버스 + 우측 615 영역에 말풍선 패널 표시.
+          const isChatActive = messages.length > 0 || isAITyping
+          // 둘 중 하나라도 활성 → 좌측 1305 영역 사용.
+          const isShifted = isAppOpen || isChatActive
           const isScenarioActive = simStage !== 'idle'
 
           // ── Sequence-driven content (sequence.md / SEQUENCES 상수 lookup) ──
@@ -323,40 +328,69 @@ function VehicleHMI() {
           const heroText = currentStep.hero
           const subText = currentStep.sub
 
-          // 앱 열림 시 메인 캔버스는 좌측 1305px 영역 안에서 중앙 정렬.
+          // 앱 열림 OR 채팅 활성 시 메인 캔버스는 좌측 1305px 영역 안에서 중앙 정렬.
           // top은 387로 고정 — 컴포넌트가 가로로만 이동, 세로 위치는 idle 기준 유지.
-          const canvasWidth = isAppOpen ? 1305 : 1920
-          const searchboxWidth = isAppOpen ? 994 : 1573
+          const canvasWidth = isShifted ? 1305 : 1920
+          const searchboxWidth = isShifted ? 994 : 1573
 
           return (
             <>
-              {/* ── Top color bloom (Figma 311:6517) ──
-                  상단에서 AutopilotStatus pill 색을 머금은 라디얼 글로우.
-                  • 외부 motion.div : 앱 열림에 따라 캔버스 영역과 동일하게 가로 축소 + 중앙 재정렬
-                    (idle 1342 / canvas 1920 ≈ 0.699 비율 유지 → app: 1305 * 0.699 ≈ 912).
-                  • 내부 AnimatePresence : 색 전환 시 cross-fade. */}
+              {/* ── Top color bloom (Figma 311:6517 / 6521 / 6574) ──
+                  Figma 사양에 충실한 2-layer 스택:
+                  • Layer A — 세로 linear: top:status.color → 60% mid (0.4α) → 0% (투명).
+                    opacity 0.55.
+                  • Layer B — 가로로 길쭉한 radial (ellipse 672×115 at 50% 25%):
+                    status.color(0.8α) → 0% (투명) at 65%. mix-blend-screen, opacity 0.553.
+                  • 외부 컨테이너 opacity 0.71. (스택 합성 → 약 0.39α 의 부드러운 글로우)
+                  컨테이너는 canvas shift 따라 가로 축소(1342→912) + 중앙 재정렬.
+                  Status 색 전환 시 cross-fade. 일렁임은 외부 컨테이너 opacity 호흡. */}
               <motion.div
                 className="absolute pointer-events-none overflow-hidden"
                 animate={{
-                  left: isAppOpen ? 196.5 : 289,
-                  width: isAppOpen ? 912 : 1342,
+                  left: isShifted ? 196.5 : 289,
+                  width: isShifted ? 912 : 1342,
+                  opacity: [0.64, 0.78, 0.7, 0.71],
+                  scaleY: [0.97, 1.02, 0.99, 1.0],
                 }}
-                transition={{ duration: 0.36, ease: [0.16, 1, 0.3, 1] }}
-                style={{ top: 79, height: 200 }}
+                transition={{
+                  left: { duration: 0.36, ease: [0.16, 1, 0.3, 1] },
+                  width: { duration: 0.36, ease: [0.16, 1, 0.3, 1] },
+                  opacity: { duration: 5.2, repeat: Infinity, ease: 'easeInOut' },
+                  scaleY: { duration: 6.6, repeat: Infinity, ease: 'easeInOut' },
+                }}
+                style={{ top: 79, height: 180, transformOrigin: 'top center' }}
               >
                 <AnimatePresence mode="popLayout">
                   <motion.div
                     key={status.color}
                     initial={{ opacity: 0 }}
-                    animate={{ opacity: 0.71 }}
+                    animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.6, ease: 'easeInOut' }}
                     className="absolute inset-0"
-                    style={{
-                      background: `radial-gradient(ellipse 50% 100% at 50% 0%, ${status.color}E6 0%, ${status.color}80 25%, ${status.color}33 50%, ${status.color}00 75%)`,
-                      filter: 'blur(6px)',
-                    }}
-                  />
+                  >
+                    {/* Layer A — vertical linear (Figma 311:6521) */}
+                    <div
+                      className="absolute inset-0"
+                      style={{
+                        background: `linear-gradient(to bottom, ${status.color} 0%, ${status.color}66 60%, ${status.color}00 100%)`,
+                        opacity: 0.55,
+                      }}
+                    />
+                    {/* Layer B — radial bloom (Figma 311:6574) */}
+                    <div
+                      className="absolute"
+                      style={{
+                        top: -10,
+                        left: 0,
+                        right: 0,
+                        height: 192,
+                        background: `radial-gradient(ellipse 672px 115px at 50% 25%, ${status.color}CC 0%, ${status.color}00 65%)`,
+                        mixBlendMode: 'screen',
+                        opacity: 0.553,
+                      }}
+                    />
+                  </motion.div>
                 </AnimatePresence>
               </motion.div>
 
@@ -470,60 +504,11 @@ function VehicleHMI() {
                 </div>
               </div>
 
-              {/* Chat overlay — visible whenever there are messages. Sits
-                  between the hero/sub block and the searchbox so the chat
-                  history reads upward to the bot's persona. */}
-              {(messages.length > 0 || isAITyping) && (
-                <div
-                  style={{
-                    marginTop: 16,
-                    width: searchboxWidth,
-                    maxHeight: 360,
-                    overflowY: 'auto',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 18,
-                    padding: '8px 4px',
-                    scrollbarWidth: 'thin',
-                  }}
-                >
-                  {messages.map((msg) => (
-                    <motion.div
-                      key={msg.id}
-                      initial={{ opacity: 0, y: 14 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.28 }}
-                      className={`message-row ${msg.type === 'user' ? 'user' : ''}`}
-                    >
-                      <div className={`message-bubble ${msg.type}`}>{msg.text}</div>
-                    </motion.div>
-                  ))}
-                  <AnimatePresence>
-                    {isAITyping && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0 }}
-                        className="message-row"
-                      >
-                        <div className="message-bubble ai" style={{ padding: '20px 32px' }}>
-                          <div className="typing-dots">
-                            <div className="typing-dot" />
-                            <div className="typing-dot" />
-                            <div className="typing-dot" />
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                  <div ref={messagesEndRef} />
-                </div>
-              )}
-
               {/* Searchbox — XAI로부터 25px 간격 (Figma 304:1129). 키패드
                   타이핑으로 Gemini와 대화. 좌측 Send 버튼 + 텍스트 input
                   + (입력 없을 때) 우측 plain Search 글리프. Enter 또는 Send
-                  로 전송. app 열림 시 폭 1573 → 994로 축소 (Figma 310:5776). */}
+                  로 전송. 채팅 활성 시 폭 1573 → 994로 축소(좌측 1305 영역).
+                  말풍선 히스토리는 우측 615 패널(아래쪽 별도 블록)에 표시. */}
               <motion.form
                 onSubmit={(e) => { e.preventDefault(); sendChatMessage(inputText) }}
                 className="flex items-center bg-white border border-[#edeef2] rounded-full hover:shadow-[0px_6px_10px_rgba(0,0,0,0.10)] transition-shadow"
@@ -555,7 +540,7 @@ function VehicleHMI() {
                   type="text"
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
-                  placeholder="자인아에게 물어보세요"
+                  placeholder="직접 검색하기"
                   disabled={isAITyping}
                   style={{
                     flex: 1,
@@ -582,6 +567,108 @@ function VehicleHMI() {
           - 상단 ambient shimmer 그라데이션 + alert pill
           모든 시나리오 reasoning 은 메인 캔버스의 AutopilotStatus pill +
           XAI hero/sub 텍스트로 통합. */}
+
+      {/* ── Chat Side Panel ─────────────────────────────────────────
+          검색바에 타이핑 시작하면 활성. 앱 패널과 동일한 615×880 슬롯,
+          헤더 + 메시지 리스트 + 자동 스크롤. 앱 패널과 동시에 뜨지는
+          않음(앱이 우선). 닫기 버튼은 messages 초기화. */}
+      <AnimatePresence>
+        {!activeApp && (messages.length > 0 || isAITyping) && (
+          <motion.div
+            key="chat-panel"
+            initial={{ opacity: 1, x: 615 }}
+            animate={{ opacity: 1, x: 0, transition: { duration: 0.36, ease: [0.16, 1, 0.3, 1] } }}
+            exit={{ opacity: 1, x: 615, transition: { duration: 0.36, ease: [0.16, 1, 0.3, 1] } }}
+            className="absolute overflow-hidden z-[10]"
+            style={{
+              left: 1305,
+              top: 79,
+              width: 615,
+              height: 880,
+              borderRadius: 16,
+              background: 'var(--bg-primary, #f7f8fa)',
+              border: '1px solid rgba(19, 20, 23, 0.2)',
+              boxShadow: '0px 6px 24px 0px rgba(0, 0, 0, 0.08)',
+            }}
+          >
+            <div className="flex flex-col w-full h-full">
+              {/* Header */}
+              <div
+                className="flex items-center bg-white shrink-0"
+                style={{
+                  height: 100,
+                  borderBottom: '1.072px solid rgba(19, 20, 23, 0.08)',
+                  paddingLeft: 21,
+                  paddingRight: 32,
+                  gap: 6,
+                }}
+              >
+                <motion.button
+                  whileTap={{ scale: 0.92 }}
+                  onClick={() => { setMessages([]); setInputText('') }}
+                  className="flex items-center justify-center bg-transparent border-0 cursor-pointer"
+                  style={{ width: 52, height: 60, borderRadius: 21, padding: 6 }}
+                  aria-label="대화 닫기"
+                >
+                  <ArrowLeft size={32} color="#343434" strokeWidth={2.2} />
+                </motion.button>
+                <span
+                  style={{
+                    fontSize: 28,
+                    fontWeight: 600,
+                    lineHeight: '51.418px',
+                    letterSpacing: '-1.07px',
+                    color: '#343434',
+                  }}
+                >
+                  대화
+                </span>
+              </div>
+              {/* Body — scrollable message list */}
+              <div
+                className="flex-1 overflow-y-auto"
+                style={{
+                  padding: '24px 28px 32px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 18,
+                }}
+              >
+                {messages.map((msg) => (
+                  <motion.div
+                    key={msg.id}
+                    initial={{ opacity: 0, y: 14 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.28 }}
+                    className={`message-row ${msg.type === 'user' ? 'user' : ''}`}
+                  >
+                    <div className={`message-bubble ${msg.type}`}>{msg.text}</div>
+                  </motion.div>
+                ))}
+                <AnimatePresence>
+                  {isAITyping && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="message-row"
+                    >
+                      <div className="message-bubble ai" style={{ padding: '20px 32px' }}>
+                        <div className="typing-dots">
+                          <div className="typing-dot" />
+                          <div className="typing-dot" />
+                          <div className="typing-dot" />
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                <div ref={messagesEndRef} />
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── App Side Panel (Figma 310:5694) ────────────────────────
           앱이 켜졌을 때 우측 615×887 패널이 슬라이드 인. 헤더에 백 버튼 +

@@ -53,13 +53,21 @@ body {
   overflow: hidden;
 }
 
-/* ── Screen Container ───────────────────────────────── */
+/* ── Screen Container ─────────────────────────────────
+   1920×1080 라는 고정 디자인 캔버스를 어떤 디스플레이에서도 화면에 맞게
+   스케일해서 보여준다. CSS만으로 처리하므로 resize 리스너 불필요:
+   - min(100vw/1920px, 100vh/1080px) → 가로/세로 둘 중 작은 비율로 스케일
+   - 결과: 일반 브라우저 창에서는 가로폭에 꽉 차고, F11 풀스크린에서는
+           1920×1080 디자인 전체가 화면 안에 letterbox로 들어옴
+   - .hmi-viewport(부모)가 flex center + overflow:hidden 이라 transform-origin
+     center 기준 스케일이 자연스럽게 중앙 정렬됨 */
 .screen {
   position: relative;
   width: 1920px;
   height: 1080px;
   flex-shrink: 0;
   transform-origin: center center;
+  transform: scale(min(calc(100vw / 1920px), calc(100vh / 1080px)));
   overflow: hidden;
   background: var(--bg-primary);
   font-family: 'Pretendard Variable', 'Pretendard', sans-serif;
@@ -162,6 +170,62 @@ body {
   display: flex;
   align-items: center;
   gap: 18px;
+}
+
+/* ── GNB center: ETA + 현재 속도 (Figma 304:1621) ──
+   Figma 원본 스펙:
+   - 라벨 24px Medium leading 1.4 tracking -0.96
+   - 숫자 36px Bold leading 1.4 tracking -0.72
+   - 단위 24px Regular leading 1.4
+   라벨/값 사이 12px 수직 여백 + 숫자/단위 사이 10px 수평 여백을 명시적으로
+   추가해 압착돼 보이는 문제 해소. */
+.gnb-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 41px;
+  color: #414141;
+  font-family: 'Pretendard Variable', 'Pretendard', sans-serif;
+}
+
+/* Figma 304:1125 — 라벨/값 stack 은 자연 line-height 만으로 간격 형성
+   (Figma 원본에 explicit gap 없음). 값 컨테이너만 h=39 justify-center 로
+   숫자/단위가 수직 중앙. 숫자↔단위는 10px gap. */
+.gnb-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 142px;
+}
+
+.gnb-stat-label {
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: -0.96px;
+  color: #414141;
+}
+
+.gnb-stat-value {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  height: 39px;
+  line-height: 1.4;
+  color: #414141;
+  font-variant-numeric: tabular-nums;
+}
+
+.gnb-stat-value .num {
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: -0.72px;
+}
+
+.gnb-stat-value .unit {
+  font-size: 24px;
+  font-weight: 400;
+  letter-spacing: -0.48px;
 }
 
 /* System-wide volume slider */
@@ -368,7 +432,34 @@ body {
   height: 30px;
 }
 
-/* ── Menu Button ────────────────────────────────────── */
+/* ── System Menu Button (Figma 286:2795) ─────────────
+   햄버거 메뉴는 앱 아이콘과 동일한 73px 원형. 회색 배경(#a0a0a5)으로
+   "시스템/제어" 영역임을 시각적으로 구분. 다른 앱 버튼들은 흰/오프화이트
+   배경이라 한눈에 구별됨. */
+.btn-menu-system {
+  width: 73px;
+  height: 73px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--divider-tertiary);
+  background: #a0a0a5;
+  cursor: pointer;
+  padding: 0;
+  filter: drop-shadow(0px 6px 12px rgba(0, 0, 0, 0.08));
+  transition: transform 0.15s ease, background 0.2s ease;
+}
+
+.btn-menu-system:hover {
+  background: #8a8a8f;
+}
+
+.btn-menu-system:active {
+  transform: scale(0.93);
+}
+
+/* ── (legacy) .btn-menu — square menu chip, kept for back-compat ── */
 .btn-menu {
   width: 51px;
   height: 51px;
@@ -532,3 +623,109 @@ body {
   box-shadow: 0px 8px 24px rgba(45, 124, 241, 0.08);
 }
 
+/* ── ControlPanel temperature slider — blue→red gradient track w/ white knob ── */
+.ctrl-temp-slider {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: 5.5px;
+  background: linear-gradient(to right, rgba(69,142,255,0.9), rgba(255,83,74,0.9));
+  border-radius: 100px;
+  outline: none;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+}
+
+.ctrl-temp-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.04);
+  cursor: grab;
+  border: none;
+  transition: transform 0.15s ease;
+}
+
+.ctrl-temp-slider::-moz-range-thumb {
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+  border: none;
+  cursor: grab;
+  transition: transform 0.15s ease;
+}
+
+.ctrl-temp-slider:active::-webkit-slider-thumb {
+  cursor: grabbing;
+  transform: scale(1.08);
+}
+.ctrl-temp-slider:active::-moz-range-thumb {
+  cursor: grabbing;
+  transform: scale(1.08);
+}
+
+/* ── Keyboard chat (searchbox → Gemini) ─────────────── */
+/* Same bubble styling as the main HMI prototype so this variant feels
+   identical. Bubbles sit in a centered column above the searchbox; the
+   user-side bubble right-aligns with a soft blue fill. */
+.message-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 17px;
+}
+
+.message-row.user {
+  flex-direction: row-reverse;
+}
+
+.message-bubble {
+  max-width: 720px;
+  padding: 20px 40px;
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: -1.12px;
+  border-radius: 20px;
+  font-family: 'Pretendard Variable', 'Pretendard', sans-serif;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  text-align: left;
+  white-space: pre-wrap;
+}
+
+.message-bubble.ai {
+  background: #edeef2;
+  color: #131417;
+}
+
+.message-bubble.user {
+  background: #f0f4fd;
+  color: #131417;
+}
+
+.typing-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.typing-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #99a1af;
+  animation: typing-bounce 1.2s ease-in-out infinite;
+}
+
+.typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.typing-dot:nth-child(3) { animation-delay: 0.30s; }
+
+@keyframes typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+  30% { transform: translateY(-6px); opacity: 1; }
+}

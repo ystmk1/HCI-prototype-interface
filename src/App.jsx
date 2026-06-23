@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Flame, Snowflake, Wind, Volume, Volume1, Volume2, VolumeX, Search } from 'lucide-react'
+import { Flame, Snowflake, Search, Menu, ArrowLeft, Send } from 'lucide-react'
 
 import { ExperimentProvider, useExperiment } from './context/ExperimentContext'
 import OperatorConsole from './components/OperatorConsole'
-import { buildRouteSvg, formatClockTime } from './utils/kakaoNav'
+import { getGeminiResponse } from './services/gemini'
 
 // === ASSET IMPORTS ===
 // Icons
@@ -21,18 +21,55 @@ import iconPhone from '../assets/icons/Icon-5.svg'       // phone
 import iconMusic from '../assets/icons/Icon-2.svg'       // music
 import iconMail from '../assets/icons/Icon-1.svg'        // mail
 import iconCalendar from '../assets/icons/Icon.svg'      // calendar
-import iconMenu from '../assets/icons/Icon-13.svg'       // hamburger menu
-
-// Images
-import imgMap from '../assets/images/image 21.png'        // road/ADAS view (camera widget)
+import iconCarAlert from '../assets/icons/car-icon.svg'  // FAB — vehicle alert (Figma 304:1138)
 
 import MusicApp from './components/MusicApp'
-import SwipeSlider from './components/SwipeSlider'
 import MailApp from './components/MailApp'
 import PhoneApp from './components/PhoneApp'
 import CalendarApp from './components/CalendarApp'
 import NavigationApp from './components/NavigationApp'
 import ControlPanel from './components/ControlPanel'
+
+// ── AutopilotStatus pill variants (single design, dot color + text vary) ──
+// 각 시퀀스 step의 status 키가 이 표를 lookup해서 pill 색과 텍스트를 결정.
+const STATUS_VARIANTS = {
+  normal:      { text: '정상 주행 중입니다',       color: '#34c759' }, // green
+  errored:     { text: '오류가 감지되었습니다',     color: '#FFCC00' }, // yellow
+  progressing: { text: '오류 원인을 파악 중입니다', color: '#2d7cf1' }, // blue
+  resolving:   { text: '오류를 해결 중입니다',      color: '#FF9500' }, // orange
+}
+
+// ── VLA scenario sequences (출처: sequence.md) ───────────────────
+// 시나리오 활성 시 Ctrl+Left/Right 로 step 이동.
+// 각 step: { status (pill variant), hero (zoom-in 텍스트), sub (zoom-out 텍스트 or null) }
+const SEQUENCES = {
+  roundabout: [
+    { status: 'normal',      hero: '목적지까지 안전하게 주행 중입니다.', sub: null },                                                    // C1-1
+    { status: 'errored',     hero: '회전교차로 진입 간격 확보에 어려움을 겪고 있습니다.',  sub: '안전 간격을 만들면 진입합니다.' },          // C1-2
+    { status: 'normal',      hero: '목적지까지 안전하게 주행 중입니다.', sub: null },                                                    // C1-3
+    { status: 'errored',     hero: '비정상적인 반복 회전이 감지되었습니다.',           sub: '2차로 진출에 실패해 같은 구간을 다시 주행합니다.' }, // C1-4
+    { status: 'progressing', hero: '차선 변경에 필요한 간격 기준이 너무 보수적입니다.', sub: '간격이 확보되면 차선 변경을 시도합니다.' },   // C1-5
+    { status: 'resolving',   hero: '2차로 차선 변경을 시도합니다.',                  sub: '잠시 정차 후 진입하겠습니다.' },               // C1-6
+    { status: 'normal',      hero: '목적지까지 안전하게 주행 중입니다.', sub: null },                                                    // C1-7
+    { status: 'errored',     hero: '진출 지점을 바로 빠져나가지 못해 한 바퀴 더 회전합니다.', sub: '다음 바퀴에 진출합니다.' },             // C1-8
+    { status: 'normal',      hero: '목적지까지 안전하게 주행 중입니다.', sub: null },                                                    // C1-9
+  ],
+  aquaplaning: [
+    { status: 'normal',      hero: '목적지까지 안전하게 주행 중입니다.', sub: null },                                                    // C2-1
+    { status: 'errored',     hero: '차량이 순간적으로 크게 요동쳤습니다.',     sub: '타이어 접지력이 급격히 떨어져 미끄럼이 발생했습니다.' },// C2-2
+    { status: 'progressing', hero: '노면의 물웅덩이를 미리 감지하지 못했습니다.', sub: '이로 인해 수막현상이 발생했습니다.' },             // C2-3
+    { status: 'resolving',   hero: '재발 방지를 위해 속도를 낮춰 서행합니다.',   sub: '약 N초 후 정상 마찰 상태로 복귀할 예정입니다.' },    // C2-4
+    { status: 'normal',      hero: '목적지까지 안전하게 주행 중입니다.', sub: null },                                                    // C2-5
+    { status: 'errored',     hero: '다시 차량이 요동쳤습니다.',                sub: '노면 접지력 저하가 원인입니다.' },                    // C2-6
+    { status: 'progressing', hero: '오르막 종단 물웅덩이를 파악하지 못했습니다.',  sub: '수막현상 방지를 위해 보수적으로 주행합니다.' },     // C2-7
+    { status: 'resolving',   hero: '지형 경사까지 고려해 더 일찍 감속합니다.',     sub: '도착 예정 시간에는 큰 차이가 없습니다.' },          // C2-8
+    { status: 'normal',      hero: '목적지까지 안전하게 주행 중입니다.', sub: null },                                                    // C2-9
+    { status: 'errored',     hero: '내리막 구간에서 차량이 크게 흔들렸습니다.',     sub: '노면 접지력을 잃었습니다.' },                     // C2-10
+    { status: 'progressing', hero: '센서 시야에 물웅덩이가 파악되지 않았습니다.',   sub: '내리막 가속이 더해져 요동이 커졌습니다.' },        // C2-11
+    { status: 'resolving',   hero: '더이상 수막현상이 발생하지 않도록 주행 속도를 낮춥니다.', sub: '규정속도의 40%인 25km/h로 속도를 유지합니다.' }, // C2-12
+    { status: 'normal',      hero: '목적지까지 안전하게 주행 중입니다.', sub: null },                                                    // C2-13
+  ],
+}
 
 function VehicleHMI() {
   const { activeScenario, hmiResetNonce } = useExperiment()
@@ -44,18 +81,53 @@ function VehicleHMI() {
   const [isNavigationFullscreen, setIsNavigationFullscreen] = useState(false)
   const [simStage, setSimStage] = useState('idle')
   const [simType, setSimType] = useState('roundabout')
+  // VLA 시퀀스 step 인덱스. Shift+Alt+Q/W 로 시나리오 시작 시 0으로 리셋,
+  // Ctrl+Left/Right 로 step 이동.
+  const [sequenceIndex, setSequenceIndex] = useState(0)
   const [isBriefingOpen, setIsBriefingOpen] = useState(false)
   const [temperature, setTemperature] = useState(20)
   const [isAutoClimate, setIsAutoClimate] = useState(true)
   const [currentSpeed, setCurrentSpeed] = useState(52)
   const [currentTime, setCurrentTime] = useState(new Date())
-  const [fanSpeed, setFanSpeed] = useState(3)
-  const [volume, setVolume] = useState(0.6)
-  const [muted, setMuted] = useState(false)
-  const [volumeOpen, setVolumeOpen] = useState(false)
-  const volumeCloseTimer = useRef(null)
   const [isControlPanelOpen, setIsControlPanelOpen] = useState(false)
   const [navInitialView, setNavInitialView] = useState(null) // 'search' when opened from greeting
+
+  // ── Keyboard chat (Gemini) ──────────────────────────────────
+  // Searchbox doubles as a typing input. Sending fires getGeminiResponse,
+  // a chat bubble overlay renders the back-and-forth above the searchbox.
+  // No voice / TTS / wake-word — this variant is keyboard-only.
+  const [messages, setMessages] = useState([])
+  const [inputText, setInputText] = useState('')
+  const [isAITyping, setIsAITyping] = useState(false)
+  const messagesEndRef = useRef(null)
+  const chatInputRef = useRef(null)
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, isAITyping])
+
+  const sendChatMessage = async (raw) => {
+    const text = raw?.trim()
+    if (!text || isAITyping) return
+    setMessages((prev) => [...prev, { id: Date.now(), type: 'user', text }])
+    setInputText('')
+    setIsAITyping(true)
+    try {
+      const ai = await getGeminiResponse(text)
+      setMessages((prev) => [
+        ...prev,
+        { id: Date.now() + 1, type: 'ai', text: ai || '(빈 응답)' },
+      ])
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        { id: Date.now() + 1, type: 'ai', text: `오류: ${err?.message ?? err}` },
+      ])
+    } finally {
+      setIsAITyping(false)
+      requestAnimationFrame(() => chatInputRef.current?.focus())
+    }
+  }
 
   const openNavSearch = () => {
     setNavInitialView('search')
@@ -74,89 +146,22 @@ function VehicleHMI() {
     return () => clearInterval(id)
   }, [activeRoute])
 
-  // Traffic-congestion pattern for the moving route dot — animateMotion's
-  // keyTimes/keyPoints make the dot accelerate, slow, and almost-stop in
-  // different segments, so it reads as real-world stop-and-go. Recomputed
-  // once per route (keyed on departureIso) so the same trip keeps a
-  // consistent rhythm even as the parent re-renders. Must sit AFTER the
-  // activeRoute declaration above — useMemo runs synchronously during
-  // render, so referencing activeRoute before its `let` binding triggers TDZ.
-  const trafficPattern = useMemo(() => {
-    if (!activeRoute) return null
-    const N = 14
-    const speeds = []
-    for (let i = 0; i < N; i++) {
-      const r = Math.random()
-      if (r < 0.22) speeds.push(0.08 + Math.random() * 0.15)        // jam / near-stop
-      else if (r < 0.45) speeds.push(1.3 + Math.random() * 0.8)     // burst (clear road)
-      else speeds.push(0.5 + Math.random() * 0.5)                   // cruise
-    }
-    const total = speeds.reduce((a, b) => a + b, 0)
-    let p = 0
-    const times = ['0']
-    const points = ['0']
-    for (let i = 0; i < N; i++) {
-      p += speeds[i] / total
-      times.push(((i + 1) / N).toFixed(3))
-      points.push(Math.min(1, p).toFixed(3))
-    }
-    return { keyTimes: times.join(';'), keyPoints: points.join(';') }
-  }, [activeRoute?.departureIso])
+  // (옛 좌측 위젯의 경로 dot 애니메이션용 trafficPattern useMemo는 제거됨 —
+  //  새 디자인은 메인 캔버스에 라이브 맵 슬롯이라 위젯 내 SVG 경로 dot이 없음)
 
-  const openVolume = () => {
-    setVolumeOpen(true)
-    if (volumeCloseTimer.current) clearTimeout(volumeCloseTimer.current)
-    volumeCloseTimer.current = setTimeout(() => setVolumeOpen(false), 3000)
-  }
-
-  const renderVolumeIcon = () => {
-    if (muted || volume === 0) return <VolumeX size={26} />
-    if (volume < 0.34) return <Volume size={26} />
-    if (volume < 0.67) return <Volume1 size={26} />
-    return <Volume2 size={26} />
-  }
-
-  // Airplane seatbelt chime sound
-  const playChime = () => {
-    try {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContext) return;
-      const ctx = new AudioContext();
-      const playTone = (freq, startTime) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, startTime);
-        gain.gain.setValueAtTime(0, startTime);
-        gain.gain.linearRampToValueAtTime(0.15, startTime + 0.05);
-        gain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.8);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(startTime);
-        osc.stop(startTime + 1);
-      };
-      playTone(1046.50, ctx.currentTime); // C6
-      playTone(1318.51, ctx.currentTime + 0.15); // E6
-    } catch(e) {
-      console.warn('Audio play failed', e);
-    }
-  }
+  // (Chime/사운드 효과 제거 — 사용자 요구)
 
   // ── Operator-driven scenario control (via ExperimentContext + BroadcastChannel) ──
-  // When operator picks a scenario from /operator (Alt+Q / Alt+W), it sets
-  // activeScenario here. We mirror that to the local simStage so the existing
-  // animations fire just like Ctrl+1 / Ctrl+2 would.
   useEffect(() => {
     if (!activeScenario) return
     const id = activeScenario.scenarioId
     if (id === 'frustration_roundabout_loop' && simStage === 'idle') {
       setSimType('roundabout')
-      playChime()
+      setSequenceIndex(0)
       setSimStage('attempting')
     } else if (id === 'anxiety_hydroplaning' && simStage === 'idle') {
       setSimType('aquaplaning')
-      playChime()
-      setIsBriefingOpen(true)
+      setSequenceIndex(0)
       setSimStage('aquaplaning_active')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -175,37 +180,47 @@ function VehicleHMI() {
     setIsNavigationFullscreen(false)
   }, [hmiResetNonce])
 
-  // Keyboard shortcuts: Alt+Q (roundabout) / Alt+W (hydroplaning)
+  // Keyboard shortcuts:
+  //   Shift+Alt+Q  → C1 회전교차로 시퀀스 토글 (entry → sequenceIndex 0)
+  //   Shift+Alt+W  → C2 수막현상 시퀀스 토글 (entry → sequenceIndex 0)
+  //   Ctrl+Right  → 시퀀스 다음 step
+  //   Ctrl+Left   → 시퀀스 이전 step
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (!e.altKey) return
-      const k = e.key.toLowerCase()
-      if (k === 'q') {
-        e.preventDefault()
-        setSimType('roundabout')
-        setSimStage(prev => {
-          if (prev === 'idle') {
-            playChime()
-            return 'attempting'
-          }
-          return 'idle'
-        })
-      } else if (k === 'w') {
-        e.preventDefault()
-        setSimType('aquaplaning')
-        setSimStage(prev => {
-          if (prev === 'idle') {
-            playChime()
-            setIsBriefingOpen(true)
-            return 'aquaplaning_active'
-          }
-          return 'idle'
-        })
+      // Scenario toggle: Shift + Alt + Q/W
+      if (e.altKey && e.shiftKey) {
+        const k = e.key.toLowerCase()
+        if (k === 'q') {
+          e.preventDefault()
+          setSimType('roundabout')
+          setSequenceIndex(0)
+          setSimStage(prev => prev === 'idle' ? 'attempting' : 'idle')
+          return
+        }
+        if (k === 'w') {
+          e.preventDefault()
+          setSimType('aquaplaning')
+          setSequenceIndex(0)
+          setSimStage(prev => prev === 'idle' ? 'aquaplaning_active' : 'idle')
+          return
+        }
+      }
+      // Sequence step navigation: Ctrl + Left/Right (only while scenario active)
+      if (e.ctrlKey && !e.altKey && !e.shiftKey) {
+        const seq = SEQUENCES[simType]
+        if (!seq || simStage === 'idle') return
+        if (e.key === 'ArrowRight') {
+          e.preventDefault()
+          setSequenceIndex(i => Math.min(seq.length - 1, i + 1))
+        } else if (e.key === 'ArrowLeft') {
+          e.preventDefault()
+          setSequenceIndex(i => Math.max(0, i - 1))
+        }
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
+  }, [simType, simStage])
 
   // Dynamic speed fluctuation
   useEffect(() => {
@@ -238,126 +253,15 @@ function VehicleHMI() {
     });
   }
 
-  // Simulation orchestrator
-  useEffect(() => {
-    let timer;
-    if (simStage === 'attempting') {
-      timer = setTimeout(() => setSimStage('searching'), 4000)
-    } else if (simStage === 'searching') {
-      timer = setTimeout(() => {
-        setSimStage('prompting')
-        setIsBriefingOpen(true)
-      }, 3000)
-    } else if (simStage === 'prompting') {
-      timer = setTimeout(() => {
-        handleApproveDetour()
-      }, 3000)
-    } else if (simStage === 'approved') {
-      timer = setTimeout(() => setSimStage('idle'), 4000)
-    } else if (simStage === 'waiting') {
-      timer = setTimeout(() => setSimStage('success'), 3000)
-    } else if (simStage === 'success') {
-      timer = setTimeout(() => setSimStage('returning'), 2000)
-    } else if (simStage === 'returning') {
-      timer = setTimeout(() => setSimStage('idle'), 2500)
-    } else if (simStage === 'aquaplaning_active') {
-      timer = setTimeout(() => {
-        setSimStage('aquaplaning_holding')
-        setIsBriefingOpen(false)
-      }, 3000)
-    } else if (simStage === 'aquaplaning_holding') {
-      timer = setTimeout(() => {
-        setSimStage('aquaplaning_recovering')
-      }, 2000)
-    } else if (simStage === 'aquaplaning_recovering') {
-      timer = setTimeout(() => setSimStage('idle'), 2500)
-    }
-    return () => clearTimeout(timer)
-  }, [simStage])
-
-  const handleApproveDetour = () => {
-    setSimStage('approved')
-    setIsBriefingOpen(false)
-  }
-
-  const getAlertConfig = () => {
-    switch (simStage) {
-      case 'searching':
-        return {
-          text: '합류 공간 찾는 중...',
-          dotAnimate: { opacity: [0.3, 1, 0.3], scale: [0.8, 1.1, 0.8] },
-          dotColor: '#007AFF',
-          dotTransition: { repeat: Infinity, duration: 1.2, ease: [0.4, 0, 0.2, 1] }
-        }
-      case 'prompting':
-        return {
-          text: '합류 승인 대기',
-          dotAnimate: { scale: [1, 1.3, 1] },
-          dotColor: '#FFCC00',
-          dotTransition: { repeat: Infinity, duration: 0.8 }
-        }
-      case 'approved':
-        return {
-          text: '합류 시작',
-          dotAnimate: { opacity: 1, scale: 1 },
-          dotColor: '#34C759',
-          dotTransition: { duration: 0.3 }
-        }
-      case 'waiting':
-        return {
-          text: '대기 중...',
-          dotAnimate: { opacity: [0.3, 1, 0.3], scale: [0.8, 1.1, 0.8] },
-          dotColor: '#FF9500',
-          dotTransition: { repeat: Infinity, duration: 1.2, ease: [0.4, 0, 0.2, 1] }
-        }
-      case 'success':
-        return {
-          text: '합류 완료',
-          dotAnimate: { opacity: 1, scale: 1 },
-          dotColor: '#34C759',
-          dotTransition: { duration: 0.3, type: "spring", stiffness: 300 }
-        }
-      case 'returning':
-        return {
-          text: '정상 주행으로 복귀',
-          dotAnimate: { opacity: 1, scale: 1 },
-          dotColor: '#34C759',
-          dotTransition: { duration: 0.3, type: "spring", stiffness: 300 }
-        }
-      case 'aquaplaning_active':
-        return {
-          text: '안전한 속도로 감속 중...',
-          dotAnimate: { opacity: [0.3, 1, 0.3], scale: [0.8, 1.1, 0.8] },
-          dotColor: '#007AFF',
-          dotTransition: { repeat: Infinity, duration: 1.2, ease: [0.4, 0, 0.2, 1] }
-        }
-      case 'aquaplaning_holding':
-        return {
-          text: '감속 유지 중...',
-          dotAnimate: { opacity: [0.3, 1, 0.3], scale: [0.8, 1.1, 0.8] },
-          dotColor: '#007AFF',
-          dotTransition: { repeat: Infinity, duration: 1.2, ease: [0.4, 0, 0.2, 1] }
-        }
-      case 'aquaplaning_recovering':
-        return {
-          text: '정상 속도로 가속',
-          dotAnimate: { opacity: 1, scale: 1 },
-          dotColor: '#34C759',
-          dotTransition: { duration: 0.3, type: "spring", stiffness: 300 }
-        }
-      default:
-        return null
-    }
-  }
-
-  const alertConfig = getAlertConfig()
+  // (옛 simStage auto-timer / handleApproveDetour / getAlertConfig 모두 제거 —
+  //  시나리오 진행은 Shift+Alt+Q/W 로 시작 후 Ctrl+Left/Right 로 수동 navigate.
+  //  AutopilotStatus + XAI 텍스트는 SEQUENCES lookup이 직접 담당.)
 
   return (
     <div className="hmi-viewport">
       <div className="screen">
 
-      <div className="absolute left-0 top-0 w-[480px] h-full bg-[rgba(247,248,250,0.3)]"
-           style={{ boxShadow: '0px 6px 24px 0px rgba(0,0,0,0.09)' }} />
+      {/* 좌측 사이드바(tint) 제거 — 새 디자인은 전체 캔버스 사용 (Figma 304:1100) */}
 
       {/* ── Top Status Bar ───────────────────────────────────── */}
       <div className="top-bar">
@@ -375,341 +279,410 @@ function VehicleHMI() {
         </div>
       </div>
 
+      {/* ── Main Canvas — idle / scenario / app-open (Figma 304:1100/1128/1139/310:5694) ──
+          activeApp이 켜지면 메인 캔버스가 좌측 1305px 영역으로 축소되고
+          AutopilotStatus는 Progressing variant로 전환. 우측에 615×887 앱 패널 등장. */}
       <motion.div
         animate={{
-          opacity: (activeApp === 'Music' && isMusicFullscreen) ? 0 : 1,
-          x: (activeApp === 'Music' && isMusicFullscreen) ? -100 : 0,
+          // 앱 열려도 페이드 안 함 — 좌측에서 reasoning 계속 표시
+          opacity: 1,
         }}
-        style={{
-          pointerEvents: (activeApp === 'Music' && isMusicFullscreen) ? 'none' : 'auto',
-        }}
-        transition={{ duration: 0.5, ease: "easeInOut" }}
-        className="absolute inset-0 z-20 pointer-events-none"
+        transition={{ duration: 0.4, ease: 'easeInOut' }}
+        className="absolute inset-0 z-[5] pointer-events-none"
       >
-        {/* Left widget column — cards stack from top with consistent gap so the
-            layout breathes naturally whether the destination card is in the
-            short greeting state or the taller route state. */}
-        <motion.div
-          layout
-          className="absolute left-[31px] top-[122px] w-[408px] flex flex-col gap-[20px] pointer-events-none"
+        {/* FAB — 항상 표시. activeApp 시 좌측 1305 영역의 우측으로 가로 이동만.
+            top은 122로 고정. 캔버스 shift + 패널 슬라이드인이 동시에 일어나되
+            패널은 화면 밖에서 시작해 우측 615 영역으로만 진입 → 겹침 없음. */}
+        <motion.button
+          animate={{
+            left: activeApp ? 'calc(40% + 326px - 28px)' : 'calc(80% + 156px - 28px)',
+          }}
+          transition={{ duration: 0.36, ease: [0.16, 1, 0.3, 1] }}
+          whileTap={{ scale: 0.94 }}
+          whileHover={{ scale: 1.04 }}
+          className="absolute bg-transparent border-0 p-0 cursor-pointer pointer-events-auto"
+          style={{ top: 122, width: 187, height: 187, zIndex: 2 }}
+          aria-label="차량 경고"
         >
-        {/* Top Destination Widget — Figma node 244:23491 */}
-        <motion.div layout className="pointer-events-auto bg-gradient-to-r from-white to-[#edeef2] border border-[rgba(19,20,23,0.1)] drop-shadow-[0px_6px_12px_rgba(0,0,0,0.08)] flex flex-col gap-[12px] items-center p-[32px] rounded-[32px] w-full">
-          {(() => {
-            const hasRoute = !!activeRoute
-            const destName = hasRoute ? activeRoute.destination.name : '어디로 갈까요?'
-            const labelText = hasRoute ? '목적지' : '반갑습니다'
-            const arrivalText = hasRoute ? formatClockTime(new Date(activeRoute.baseArrivalIso)) : '10:12 PM'
-            const timeParts = arrivalText.split(' ')
-            const timeOnly = timeParts[0] || '10:12'
-            const ampm = timeParts[1] || 'PM'
+          <img src={iconCarAlert} alt="" className="block w-full h-full pointer-events-none select-none" />
+        </motion.button>
 
-            return (
-              <>
-                {/* Top text block — Figma: font-Medium, items-start, leading-1.4 */}
-                <div className="flex items-center leading-[1.4] w-[294px] gap-[12px]">
-                  <div className="flex flex-col flex-1 min-w-0">
-                    <p className="font-medium text-[#99a1af] text-[22px]">
-                      {labelText}
-                    </p>
-                    <p className="font-medium text-[#131417] text-[26px] tracking-[-1px] truncate">
-                      {destName}
-                    </p>
-                  </div>
-                  {!hasRoute && (
-                    <motion.button
-                      whileTap={{ scale: 0.92 }}
-                      whileHover={{ y: -1 }}
-                      onClick={openNavSearch}
-                      aria-label="경로 검색"
-                      className="shrink-0 w-[56px] h-[56px] rounded-full bg-[#f7f8fa] border border-[rgba(19,20,23,0.2)] flex items-center justify-center drop-shadow-[0px_6px_12px_rgba(0,0,0,0.08)]"
+        {(() => {
+          const isAppOpen = !!activeApp
+          const isScenarioActive = simStage !== 'idle'
+
+          // ── Sequence-driven content (sequence.md / SEQUENCES 상수 lookup) ──
+          // 시나리오 활성화 → sequenceIndex가 SEQUENCES[simType] 안의 step을 가리킴.
+          // idle 상태일 땐 default normal step (C1-1 / C2-1과 동일 내용)을 사용.
+          const seq = SEQUENCES[simType]
+          const currentStep = (isScenarioActive && seq)
+            ? seq[Math.min(sequenceIndex, seq.length - 1)]
+            : { status: 'normal', hero: '목적지까지 안전하게 주행 중입니다.', sub: null }
+
+          const status = STATUS_VARIANTS[currentStep.status] ?? STATUS_VARIANTS.normal
+          const heroText = currentStep.hero
+          const subText = currentStep.sub
+
+          // 앱 열림 시 메인 캔버스는 좌측 1305px 영역 안에서 중앙 정렬.
+          // top은 387로 고정 — 컴포넌트가 가로로만 이동, 세로 위치는 idle 기준 유지.
+          const canvasWidth = isAppOpen ? 1305 : 1920
+          const searchboxWidth = isAppOpen ? 994 : 1573
+
+          return (
+            <>
+              {/* ── Top color bloom (Figma 311:6517) ──
+                  상단에서 AutopilotStatus pill 색을 머금은 라디얼 글로우.
+                  • 외부 motion.div : 앱 열림에 따라 캔버스 영역과 동일하게 가로 축소 + 중앙 재정렬
+                    (idle 1342 / canvas 1920 ≈ 0.699 비율 유지 → app: 1305 * 0.699 ≈ 912).
+                  • 내부 AnimatePresence : 색 전환 시 cross-fade. */}
+              <motion.div
+                className="absolute pointer-events-none overflow-hidden"
+                animate={{
+                  left: isAppOpen ? 196.5 : 289,
+                  width: isAppOpen ? 912 : 1342,
+                }}
+                transition={{ duration: 0.36, ease: [0.16, 1, 0.3, 1] }}
+                style={{ top: 79, height: 200 }}
+              >
+                <AnimatePresence mode="popLayout">
+                  <motion.div
+                    key={status.color}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 0.71 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.6, ease: 'easeInOut' }}
+                    className="absolute inset-0"
+                    style={{
+                      background: `radial-gradient(ellipse 50% 100% at 50% 0%, ${status.color}E6 0%, ${status.color}80 25%, ${status.color}33 50%, ${status.color}00 75%)`,
+                      filter: 'blur(6px)',
+                    }}
+                  />
+                </AnimatePresence>
+              </motion.div>
+
+            <motion.div
+              className="absolute pointer-events-auto"
+              animate={{ left: 0, width: canvasWidth }}
+              transition={{ duration: 0.36, ease: [0.16, 1, 0.3, 1] }}
+              style={{ top: 387, display: 'flex', flexDirection: 'column', alignItems: 'center' }}
+            >
+              {/* AutopilotStatus pill — 통일된 디자인 (Figma 311:7070 / 310:5239).
+                  Dot 색은 motion으로 부드럽게 전환, 텍스트는 AnimatePresence 로
+                  fade+slide 교체. */}
+              <div
+                className="flex items-center rounded-full"
+                style={{
+                  gap: 11,
+                  padding: '15px 29px',
+                  background: 'rgba(255,255,255,0.85)',
+                  backdropFilter: 'blur(6px)',
+                  WebkitBackdropFilter: 'blur(6px)',
+                  border: '1px solid rgba(255,255,255,0.6)',
+                  boxShadow: '0px 4px 14px rgba(0,0,0,0.08)',
+                  overflow: 'hidden',
+                }}
+              >
+                <motion.span
+                  className="rounded-full shrink-0"
+                  animate={{
+                    backgroundColor: status.color,
+                    boxShadow: `0 0 8px ${status.color}80`,
+                  }}
+                  transition={{ duration: 0.4, ease: 'easeOut' }}
+                  style={{ width: 13, height: 13 }}
+                />
+                <div style={{ position: 'relative', height: 24, overflow: 'hidden' }}>
+                  <AnimatePresence mode="wait">
+                    <motion.span
+                      key={status.text}
+                      initial={{ opacity: 0, x: -6 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 6 }}
+                      transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                      style={{
+                        display: 'inline-block',
+                        fontSize: 24,
+                        lineHeight: '24px',
+                        letterSpacing: '-0.48px',
+                        color: '#131417',
+                        fontWeight: 500,
+                        whiteSpace: 'nowrap',
+                      }}
                     >
-                      <Search size={22} color="#131417" strokeWidth={2} />
-                    </motion.button>
-                  )}
+                      {status.text}
+                    </motion.span>
+                  </AnimatePresence>
                 </div>
+              </div>
 
-                {/* Route + ETA — Figma uses absolute positioning inside w-294 h-64 */}
-                {hasRoute && (() => {
-                  const svgPath = buildRouteSvg(activeRoute.geometry, 106, 66, 8)
-                  const pathId = `route-path-${activeRoute.departureIso}`
-                  const glowId = `route-glow-${activeRoute.departureIso}`
-                  // Negative begin offsets the SVG animation to the current
-                  // elapsed time so the dot appears already in progress.
-                  const now = Date.now()
-                  const startMs = new Date(activeRoute.departureIso).getTime()
-                  const elapsedSec = Math.max(0, (now - startMs) / 1000)
-                  // Slow the whole traversal down so the stop-and-go rhythm is
-                  // visible at the widget scale (durationSec can be hours).
-                  const dotDur = Math.max(45, Math.min(activeRoute.durationSec, 240))
-                  return (
-                    <div className="relative h-[64px] w-[294px]">
-                      {/* Route SVG at left-13.5 top-0 (h-66 overflows container slightly) */}
-                      <div className="absolute h-[66px] left-[13.5px] top-0 w-[106px]">
-                        <svg width="100%" height="100%" viewBox="0 0 106 66" preserveAspectRatio="xMidYMid meet" overflow="visible">
-                          <defs>
-                            <radialGradient id={glowId} cx="50%" cy="50%" r="50%">
-                              <stop offset="0%"  stopColor="#7fb3ff" stopOpacity="1" />
-                              <stop offset="55%" stopColor="#2d7cf1" stopOpacity="0.55" />
-                              <stop offset="100%" stopColor="#2d7cf1" stopOpacity="0" />
-                            </radialGradient>
-                          </defs>
-                          {/* Path */}
-                          <path id={pathId} d={svgPath.d} stroke="#2d7cf1" strokeWidth={3} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={0.95} />
-                          {/* Origin marker — solid blue dot (matches route color) */}
-                          <circle cx={svgPath.start[0]} cy={svgPath.start[1]} r={3.2} fill="#2d7cf1" />
-                          {/* Destination marker — solid red dot */}
-                          <circle cx={svgPath.end[0]} cy={svgPath.end[1]} r={3.6} fill="#e85d5d" />
-                          {/* Moving progress dot — variable speed (keyTimes/keyPoints
-                              simulate stop-and-go), glow + pulse for "일렁일렁" */}
-                          <g>
-                            <animateMotion
-                              dur={`${dotDur}s`}
-                              begin={`-${elapsedSec}s`}
-                              fill="freeze"
-                              repeatCount="1"
-                              calcMode="linear"
-                              keyTimes={trafficPattern?.keyTimes}
-                              keyPoints={trafficPattern?.keyPoints}
-                            >
-                              <mpath href={`#${pathId}`} />
-                            </animateMotion>
-                            {/* Outer halo — gradient glow, larger pulse */}
-                            <circle r={8} fill={`url(#${glowId})`}>
-                              <animate attributeName="r"       values="7;10.5;7"   dur="1.7s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
-                              <animate attributeName="opacity" values="0.55;0.9;0.55" dur="1.7s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
-                            </circle>
-                            {/* Inner core — solid, smaller pulse */}
-                            <circle r={3.4} fill="#2d7cf1">
-                              <animate attributeName="r" values="3;3.8;3" dur="1.7s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
-                            </circle>
-                          </g>
-                        </svg>
-                      </div>
-                      {/* ETA group at left-166 — ~170% line-height between
-                          label and value for comfortable typographic rhythm. */}
-                      <div className="absolute left-[166px] top-0">
-                        <p className="font-normal leading-[1.7] text-[#99a1af] text-[20px]">
-                          도착예정
-                        </p>
-                        <div className="flex items-baseline gap-[4px] whitespace-nowrap leading-[1.05]">
-                          <span className="font-semibold text-[32px] tracking-[-0.64px] text-[#131417]">{timeOnly}</span>
-                          <span className="font-normal text-[20px] tracking-[-0.4px] text-[#99a1af]">{ampm}</span>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })()}
-              </>
-            )
-          })()}
-        </motion.div>
+              {/* XAI block — pill로부터 15px 간격.
+                  Hero / sub 텍스트는 AnimatePresence 로 fade+slide 전환. */}
+              <div className="flex flex-col items-center" style={{ marginTop: 15 }}>
+                <AnimatePresence mode="wait">
+                  <motion.p
+                    key={heroText}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+                    style={{
+                      fontSize: 62,
+                      lineHeight: 1.28,
+                      letterSpacing: '-2.48px',
+                      fontWeight: 600,
+                      color: '#676767',
+                      textAlign: 'center',
+                      margin: 0,
+                      maxWidth: 1478,
+                    }}
+                  >
+                    {heroText}
+                  </motion.p>
+                </AnimatePresence>
 
-        {/* Bottom Speed & ADAS Widget — sits below the destination card with a
-            consistent 20px gap (managed by the parent flex column). */}
-        <motion.div layout className="pointer-events-auto bg-gradient-to-r from-white to-[#edeef2] border border-[rgba(19,20,23,0.1)] drop-shadow-[0px_6px_12px_rgba(0,0,0,0.08)] flex flex-col gap-[24px] items-start p-[32px] rounded-[32px] w-full">
-          <div className="flex items-baseline shrink-0">
-            <span className="font-medium leading-[1.1] text-[#131417] text-[66px] tracking-[-1.6px]">{currentSpeed}</span>
-            <span className="font-normal leading-[37px] ml-[8px] text-[#99a1af] text-[22px]">km/h</span>
-          </div>
-          <div className="flex flex-col gap-[20px] items-start relative shrink-0 w-full">
-            <div className="h-[200px] opacity-80 relative shrink-0 w-full overflow-hidden rounded-[16px]">
-              <img alt="" className="absolute inset-0 max-w-none object-cover pointer-events-none size-full" src={imgMap} />
-            </div>
+                {/* Sub 영역 — 항상 reservation 공간(높이 63 + mt 6 = 69)을 유지해
+                    null ↔ 텍스트 전환 시 searchbox 점프 방지 */}
+                <div style={{ marginTop: 6, height: 63, width: '100%', position: 'relative' }}>
+                  <AnimatePresence mode="wait">
+                    {subText && (
+                      <motion.p
+                        key={subText}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 10 }}
+                        transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1], delay: 0.05 }}
+                        style={{
+                          fontSize: 42,
+                          lineHeight: 1.5,
+                          letterSpacing: '-1.68px',
+                          fontWeight: 400,
+                          color: '#a0a0a0',
+                          textAlign: 'center',
+                          margin: 0,
+                          position: 'absolute',
+                          inset: 0,
+                        }}
+                      >
+                        {subText}
+                      </motion.p>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
 
-            <AnimatePresence mode="wait">
-              {simType === 'roundabout' && simStage !== 'idle' && (
-                <motion.div
-                  key="slider"
-                  initial={{ opacity: 0, y: 12, height: 0 }}
-                  animate={{ opacity: 1, y: 0, height: 63 }}
-                  exit={{ opacity: 0, y: 12, height: 0 }}
-                  transition={{ delay: 0.4, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                  className="w-full shrink-0"
+              {/* Chat overlay — visible whenever there are messages. Sits
+                  between the hero/sub block and the searchbox so the chat
+                  history reads upward to the bot's persona. */}
+              {(messages.length > 0 || isAITyping) && (
+                <div
+                  style={{
+                    marginTop: 16,
+                    width: searchboxWidth,
+                    maxHeight: 360,
+                    overflowY: 'auto',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 18,
+                    padding: '8px 4px',
+                    scrollbarWidth: 'thin',
+                  }}
                 >
-                  <SwipeSlider onApprove={handleApproveDetour} />
-                </motion.div>
-              )}
-              {simType === 'aquaplaning' && simStage !== 'idle' && (
-                <motion.div
-                  key="aquaplaning"
-                  initial={{ opacity: 0, y: 12, height: 0 }}
-                  animate={{ opacity: 1, y: 0, height: 'auto' }}
-                  exit={{ opacity: 0, y: 12, height: 0 }}
-                  transition={{ delay: 0.4, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                  className="w-full shrink-0 overflow-hidden"
-                >
-                  <div className="bg-white border border-[rgba(19,20,23,0.05)] drop-shadow-[0px_12px_6px_rgba(0,0,0,0.11)] flex flex-col gap-[18px] items-start p-[24px] relative rounded-[20px] shrink-0 w-full">
-                    <div className="flex flex-col gap-[6px] items-start whitespace-nowrap">
-                      <div className="text-[#131417] tracking-[-0.52px]">
-                        <p className="font-normal leading-[1.3] mb-0 text-[24px]">안전 확보를 위해</p>
-                        <p className="text-[24px] leading-[1.3]">
-                          <span className="font-bold tracking-[-0.48px]">80km/h</span>
-                          <span className="font-normal">로 감속</span>
-                        </p>
-                      </div>
-                      <p className="font-medium text-[#99a1af] text-[16px] tracking-[-0.32px] leading-[1.4]">
-                        <span>약 </span>
-                        <span className="text-[#2d7cf1]">3초간 감속</span>
-                        <span>을 유지합니다.</span>
-                      </p>
-                    </div>
-                    <div className="relative w-full h-[8px] bg-[#f0f0f0] rounded-full overflow-hidden">
+                  {messages.map((msg) => (
+                    <motion.div
+                      key={msg.id}
+                      initial={{ opacity: 0, y: 14 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.28 }}
+                      className={`message-row ${msg.type === 'user' ? 'user' : ''}`}
+                    >
+                      <div className={`message-bubble ${msg.type}`}>{msg.text}</div>
+                    </motion.div>
+                  ))}
+                  <AnimatePresence>
+                    {isAITyping && (
                       <motion.div
-                        initial={{ width: '100%' }}
-                        animate={{ width: '0%' }}
-                        transition={{ delay: 0.95, duration: 3, ease: 'linear' }}
-                        className="absolute top-0 left-0 h-full bg-[#2d7cf1] rounded-full"
-                      />
-                    </div>
-                  </div>
-                </motion.div>
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        className="message-row"
+                      >
+                        <div className="message-bubble ai" style={{ padding: '20px 32px' }}>
+                          <div className="typing-dots">
+                            <div className="typing-dot" />
+                            <div className="typing-dot" />
+                            <div className="typing-dot" />
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                  <div ref={messagesEndRef} />
+                </div>
               )}
-            </AnimatePresence>
-          </div>
-        </motion.div>
-        </motion.div>
+
+              {/* Searchbox — XAI로부터 25px 간격 (Figma 304:1129). 키패드
+                  타이핑으로 Gemini와 대화. 좌측 Send 버튼 + 텍스트 input
+                  + (입력 없을 때) 우측 plain Search 글리프. Enter 또는 Send
+                  로 전송. app 열림 시 폭 1573 → 994로 축소 (Figma 310:5776). */}
+              <motion.form
+                onSubmit={(e) => { e.preventDefault(); sendChatMessage(inputText) }}
+                className="flex items-center bg-white border border-[#edeef2] rounded-full hover:shadow-[0px_6px_10px_rgba(0,0,0,0.10)] transition-shadow"
+                animate={{ width: searchboxWidth }}
+                transition={{ duration: 0.36, ease: [0.16, 1, 0.3, 1] }}
+                style={{
+                  marginTop: 25,
+                  paddingLeft: 38,
+                  paddingRight: 38,
+                  paddingTop: 20,
+                  paddingBottom: 20,
+                  gap: 28,
+                  boxShadow: '0px 4px 2px rgba(0,0,0,0.10)',
+                }}
+              >
+                <button
+                  type="submit"
+                  disabled={!inputText.trim() || isAITyping}
+                  className="rounded-full flex items-center justify-center shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{ width: 72, height: 72, background: '#131417', border: 'none', cursor: 'pointer' }}
+                  aria-label="보내기"
+                >
+                  {inputText.trim()
+                    ? <Send size={28} color="#ffffff" strokeWidth={2.4} />
+                    : <Search size={28} color="#ffffff" strokeWidth={2.4} />}
+                </button>
+                <input
+                  ref={chatInputRef}
+                  type="text"
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  placeholder="자인아에게 물어보세요"
+                  disabled={isAITyping}
+                  style={{
+                    flex: 1,
+                    fontSize: 32,
+                    lineHeight: 1.6,
+                    letterSpacing: '-0.64px',
+                    color: '#131417',
+                    fontWeight: 400,
+                    border: 'none',
+                    outline: 'none',
+                    background: 'transparent',
+                    fontFamily: "'Pretendard Variable', 'Pretendard', sans-serif",
+                  }}
+                />
+              </motion.form>
+            </motion.div>
+            </>
+          )
+        })()}
       </motion.div>
 
-      {/* ── Top-edge ambient shimmer — flat bell, centered on screen.
-          Width ~600px (~31% of 1920), height 96px so the bell sits
-          flat against the top instead of reading as a hemisphere.
-          All wave layers are symmetric around horizontal center so
-          the glow doesn't bias to one side. Alert text uses its own
-          backdrop-blurred pill for guaranteed legibility against any
-          stage color. */}
-      <AnimatePresence>
-        {alertConfig && (
-          <motion.div
-            key="top-shimmer"
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.5, ease: 'easeOut' }}
-            className="absolute top-0 inset-x-0 mx-auto w-[600px] h-[96px] z-[60] pointer-events-none"
-          >
-            {/* Shimmer surface — bell-curve mask: tall at center, fast falloff */}
-            <div
-              className="absolute inset-0 overflow-hidden"
-              style={{
-                maskImage:       'radial-gradient(ellipse 50% 100% at 50% 0%, #000 0%, #000 20%, rgba(0,0,0,0.55) 55%, transparent 95%)',
-                WebkitMaskImage: 'radial-gradient(ellipse 50% 100% at 50% 0%, #000 0%, #000 20%, rgba(0,0,0,0.55) 55%, transparent 95%)',
-              }}
-            >
-              {/* Base color veil — strongest at the top, fades downward */}
-              <div
-                className="absolute inset-0"
-                style={{
-                  background: `linear-gradient(180deg, ${alertConfig.dotColor} 0%, ${alertConfig.dotColor}66 60%, ${alertConfig.dotColor}00 100%)`,
-                  opacity: 0.55,
-                }}
-              />
-              {/* Wave 1 — centered radial blob, gentle horizontal sway */}
-              <motion.div
-                className="absolute -inset-x-[10%] -top-[40%] h-[200%]"
-                style={{
-                  background: `radial-gradient(ellipse 35% 60% at 50% 25%, ${alertConfig.dotColor}cc 0%, transparent 65%)`,
-                  mixBlendMode: 'screen',
-                }}
-                animate={{ x: ['-4%', '4%', '-4%'], opacity: [0.55, 0.85, 0.55] }}
-                transition={{ duration: 5.5, repeat: Infinity, ease: 'easeInOut' }}
-              />
-              {/* Wave 2 — slightly smaller, counter-phase, also centered */}
-              <motion.div
-                className="absolute -inset-x-[10%] -top-[30%] h-[180%]"
-                style={{
-                  background: `radial-gradient(ellipse 28% 55% at 50% 30%, ${alertConfig.dotColor}aa 0%, transparent 60%)`,
-                  mixBlendMode: 'screen',
-                }}
-                animate={{ x: ['3%', '-3%', '3%'], opacity: [0.4, 0.75, 0.4] }}
-                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 0.8 }}
-              />
-            </div>
+      {/* 옛 디자인 잔재 모두 제거:
+          - Floating SwipeSlider / hydroplaning 경고 카드 (CTA)
+          - 상단 ambient shimmer 그라데이션 + alert pill
+          모든 시나리오 reasoning 은 메인 캔버스의 AutopilotStatus pill +
+          XAI hero/sub 텍스트로 통합. */}
 
-            {/* Alert text — backdrop-blurred pill keeps the copy readable
-                regardless of stage color, sits in the bright center band. */}
-            <div className="absolute top-[18px] inset-x-0 mx-auto w-fit flex items-center gap-[10px] bg-white/85 backdrop-blur-md px-[18px] py-[8px] rounded-full border border-white/60 shadow-[0_4px_14px_rgba(0,0,0,0.08)]">
-              <motion.div
-                animate={alertConfig.dotAnimate}
-                transition={alertConfig.dotTransition}
-                className="w-[10px] h-[10px] rounded-full"
-                style={{ backgroundColor: alertConfig.dotColor }}
-              />
-              <span className="text-[16px] font-semibold tracking-[-0.3px] text-[#131417] whitespace-nowrap">
-                {alertConfig.text}
-              </span>
+      {/* ── App Side Panel (Figma 310:5694) ────────────────────────
+          앱이 켜졌을 때 우측 615×887 패널이 슬라이드 인. 헤더에 백 버튼 +
+          앱 이름. 본문은 기존 앱 컴포넌트가 들어가는 자리 — 단, 기존 앱
+          컴포넌트는 fullscreen 사이징(1410+)을 가정하고 있어 패널에 그대로
+          넣으면 overflow됨. 다음 이터레이션에서 각 앱을 패널 사이즈에 맞게
+          리팩토링 필요. 일단은 헤더만 보여주고 본문 자리에 placeholder. */}
+      <AnimatePresence>
+        {activeApp && (
+          <motion.div
+            key={`app-panel-${activeApp}`}
+            // 패널 너비 615px만큼 우측 화면 밖에서 시작 (left:1305 + x:615 = 1920, 화면 오른쪽 경계).
+            // 캔버스/searchbox/FAB와 동일한 duration·easing 으로 동시 진행하되,
+            // 패널은 우측 외부 → 1305 영역으로만 진입하므로 캔버스 우측 빈 영역 안에서만
+            // 이동 → 좌측 컴포넌트와 시각적 겹침 0.
+            initial={{ opacity: 1, x: 615 }}
+            animate={{ opacity: 1, x: 0, transition: { duration: 0.36, ease: [0.16, 1, 0.3, 1] } }}
+            exit={{ opacity: 1, x: 615, transition: { duration: 0.36, ease: [0.16, 1, 0.3, 1] } }}
+            className="absolute overflow-hidden z-[10]"
+            style={{
+              left: 1305,
+              top: 79,
+              width: 615,
+              // Figma 311:7072 — top 79 + bottom 121 → height 880 (이전 887은 GNB와 7px 겹쳐 둥근 모서리 잘렸음)
+              height: 880,
+              borderRadius: 16,
+              background: 'var(--bg-primary, #f7f8fa)',
+              border: '1px solid rgba(19, 20, 23, 0.2)',
+              boxShadow: '0px 6px 24px 0px rgba(0, 0, 0, 0.08)',
+            }}
+          >
+            <div className="flex flex-col w-full h-full">
+              {/* Header — Figma 310:5698: bg-white, h-100, border-bottom */}
+              <div
+                className="flex items-center bg-white shrink-0"
+                style={{
+                  height: 100,
+                  borderBottom: '1.072px solid rgba(19, 20, 23, 0.08)',
+                  paddingLeft: 21,
+                  paddingRight: 32,
+                  gap: 6,
+                }}
+              >
+                <motion.button
+                  whileTap={{ scale: 0.92 }}
+                  onClick={() => {
+                    setActiveApp(null)
+                    setIsMusicFullscreen(false)
+                    setIsMailFullscreen(false)
+                    setIsPhoneFullscreen(false)
+                    setIsCalendarFullscreen(false)
+                    setIsNavigationFullscreen(false)
+                    setNavInitialView(null)
+                  }}
+                  className="flex items-center justify-center bg-transparent border-0 cursor-pointer"
+                  style={{ width: 52, height: 60, borderRadius: 21, padding: 6 }}
+                  aria-label="뒤로"
+                >
+                  <ArrowLeft size={32} color="#343434" strokeWidth={2.2} />
+                </motion.button>
+                <span
+                  style={{
+                    fontSize: 28,
+                    fontWeight: 600,
+                    lineHeight: '51.418px',
+                    letterSpacing: '-1.07px',
+                    color: '#343434',
+                  }}
+                >
+                  {activeApp === 'Navigation' ? '현재경로'
+                    : activeApp === 'Phone'    ? '전화'
+                    : activeApp === 'Music'    ? '음악'
+                    : activeApp === 'Mail'     ? '메일'
+                    : activeApp === 'Calendar' ? '캘린더'
+                    : activeApp}
+                </span>
+              </div>
+
+              {/* Body — placeholder. 기존 앱 컴포넌트들은 615px 패널에 맞지
+                  않아서 다음 이터레이션에서 panel-mode prop 도입 후 렌더링 */}
+              <div
+                className="flex-1 flex items-center justify-center"
+                style={{ background: 'var(--bg-primary, #f7f8fa)' }}
+              >
+                <span style={{ fontSize: 18, color: '#a0a0a0', letterSpacing: '-0.36px' }}>
+                  앱 본문 (615px 패널용 리팩토링 필요)
+                </span>
+              </div>
             </div>
           </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {activeApp === 'Music' && (
-          <MusicApp 
-            isFullscreen={isMusicFullscreen} 
-            setIsFullscreen={setIsMusicFullscreen}
-            isBriefingOpen={isBriefingOpen}
-            onClose={() => {
-              setActiveApp(null)
-              setIsMusicFullscreen(false)
-            }} 
-          />
-        )}
-        {activeApp === 'Mail' && (
-          <MailApp 
-            isFullscreen={isMailFullscreen} 
-            setIsFullscreen={setIsMailFullscreen}
-            isBriefingOpen={isBriefingOpen}
-            onClose={() => {
-              setActiveApp(null)
-              setIsMailFullscreen(false)
-            }} 
-          />
-        )}
-        {activeApp === 'Phone' && (
-          <PhoneApp 
-            isFullscreen={isPhoneFullscreen} 
-            setIsFullscreen={setIsPhoneFullscreen}
-            isBriefingOpen={isBriefingOpen}
-            onClose={() => {
-              setActiveApp(null)
-              setIsPhoneFullscreen(false)
-            }} 
-          />
-        )}
-        {activeApp === 'Calendar' && (
-          <CalendarApp
-            isFullscreen={isCalendarFullscreen}
-            setIsFullscreen={setIsCalendarFullscreen}
-            isBriefingOpen={isBriefingOpen}
-            onClose={() => {
-              setActiveApp(null)
-              setIsCalendarFullscreen(false)
-            }}
-          />
-        )}
-        {activeApp === 'Navigation' && (
-          <NavigationApp
-            isFullscreen={isNavigationFullscreen}
-            setIsFullscreen={setIsNavigationFullscreen}
-            isBriefingOpen={isBriefingOpen}
-            activeRoute={activeRoute}
-            setActiveRoute={setActiveRoute}
-            initialView={navInitialView}
-            onClose={() => {
-              setActiveApp(null)
-              setIsNavigationFullscreen(false)
-              setNavInitialView(null)
-            }}
-          />
         )}
       </AnimatePresence>
 
 
 
       {/* ── Bottom App Bar ────────────────────────────────────── */}
+      {/* Bottom GNB — Figma node 286:2728.
+          Left: HVAC (home, temp ↓, 20.0 AUTO, temp ↑). 풍량 제거.
+          Right: 5 app icons + menu (모두 73px 원형, 메뉴는 회색 배경으로 시스템 구분).
+          중앙 ETA/거리는 의도적으로 미반영 (음성 버전 전용 패널). */}
       <div className="bottom-bar">
-        {/* Left: Home, Climate, Fan */}
         <div className="bottom-left">
           <motion.button
             whileTap={{ scale: 0.92 }}
@@ -763,35 +736,46 @@ function VehicleHMI() {
           >
             <img src={iconChevronUp} alt="Temp up" />
           </motion.button>
-
-          {/* Fan speed indicator */}
-          <button
-            className="fan-display"
-            title={`바람 세기 ${fanSpeed}/5`}
-            onClick={() => setFanSpeed(prev => (prev % 5) + 1)}
-            style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}
-          >
-            <Wind size={22} color={fanSpeed >= 4 ? '#4A90D9' : 'var(--text-secondary)'} />
-            <div className="fan-dots">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <span
-                  key={i}
-                  className="fan-dot"
-                  style={{ background: i <= fanSpeed ? '#4A90D9' : 'rgba(140,144,168,0.28)' }}
-                />
-              ))}
-            </div>
-          </button>
         </div>
 
-        {/* Center: App Icons (5 apps) */}
-        <div className="bottom-center">
+        {/* Center: ETA + 현재 속도 (Figma 304:1621) — 도착 예정/현재 속도 두 그룹 */}
+        <div className="gnb-center">
+          {(() => {
+            // 활성 경로가 있으면 잔여 분, 없으면 placeholder
+            let etaMin = 10
+            if (activeRoute) {
+              const arr = new Date(activeRoute.baseArrivalIso).getTime()
+              etaMin = Math.max(0, Math.round((arr - Date.now()) / 60_000))
+            }
+            return (
+              <>
+                <div className="gnb-stat">
+                  <span className="gnb-stat-label">도착 예정</span>
+                  <span className="gnb-stat-value">
+                    <span className="num">{etaMin}</span>
+                    <span className="unit">분 뒤</span>
+                  </span>
+                </div>
+                <div className="gnb-stat">
+                  <span className="gnb-stat-label">현재 속도</span>
+                  <span className="gnb-stat-value">
+                    <span className="num">{currentSpeed}</span>
+                    <span className="unit">km/h</span>
+                  </span>
+                </div>
+              </>
+            )
+          })()}
+        </div>
+
+        {/* Right: 5 app icons + system menu (Figma 'App' container 522×73) */}
+        <div className="bottom-right">
           {[
             { id: 'Navigation', icon: iconSend },
-            { id: 'Phone', icon: iconPhone },
-            { id: 'Music', icon: iconMusic },
-            { id: 'Mail', icon: iconMail },
-            { id: 'Calendar', icon: iconCalendar },
+            { id: 'Phone',      icon: iconPhone },
+            { id: 'Music',      icon: iconMusic },
+            { id: 'Mail',       icon: iconMail },
+            { id: 'Calendar',   icon: iconCalendar },
           ].map((item) => (
             <motion.button
               key={item.id}
@@ -802,57 +786,13 @@ function VehicleHMI() {
               <img src={item.icon} alt={item.id} />
             </motion.button>
           ))}
-        </div>
-
-        {/* Right: Volume, Menu */}
-        <div className="bottom-right">
-          <div className="volume-control" title={`볼륨 ${Math.round((muted ? 0 : volume) * 100)}%`}>
-            <motion.div
-              initial={false}
-              animate={{ width: volumeOpen ? 160 : 0, opacity: volumeOpen ? 1 : 0 }}
-              transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-              style={{ overflow: 'hidden' }}
-            >
-              <div
-                className="volume-bar"
-                role="slider"
-                aria-label="시스템 볼륨"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={Math.round((muted ? 0 : volume) * 100)}
-                onClick={(e) => {
-                  const r = e.currentTarget.getBoundingClientRect()
-                  const ratio = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width))
-                  setVolume(ratio)
-                  if (muted && ratio > 0) setMuted(false)
-                  openVolume()
-                }}
-              >
-                <div
-                  className="volume-fill"
-                  style={{ width: `${(muted ? 0 : volume) * 100}%` }}
-                />
-              </div>
-            </motion.div>
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              className="volume-icon-btn"
-              onClick={() => {
-                if (!volumeOpen) { openVolume(); return }
-                setMuted(m => !m)
-                openVolume()
-              }}
-              aria-label={volumeOpen ? (muted ? '음소거 해제' : '음소거') : '음량 조절'}
-            >
-              {renderVolumeIcon()}
-            </motion.button>
-          </div>
           <motion.button
             whileTap={{ scale: 0.92 }}
-            className="btn-menu"
+            className="btn-menu-system"
+            aria-label="시스템 메뉴"
             onClick={() => setIsControlPanelOpen(v => !v)}
           >
-            <img src={iconMenu} alt="Menu" />
+            <Menu size={28} color="#ffffff" strokeWidth={2.4} />
           </motion.button>
         </div>
       </div>

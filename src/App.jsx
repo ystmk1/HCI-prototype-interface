@@ -6,6 +6,9 @@ import { Flame, Snowflake, Search, Menu, ArrowLeft, Send } from 'lucide-react'
 import { ExperimentProvider, useExperiment } from './context/ExperimentContext'
 import OperatorConsole from './components/OperatorConsole'
 import { getGeminiResponse } from './services/gemini'
+import { speakText, stopSpeaking } from './services/tts'
+
+const TTS_KEY = import.meta.env.VITE_GOOGLE_TTS_API_KEY
 
 // === ASSET IMPORTS ===
 // Icons
@@ -180,28 +183,42 @@ function VehicleHMI() {
     setIsNavigationFullscreen(false)
   }, [hmiResetNonce])
 
-  // Keyboard shortcuts:
-  //   Shift+Alt+Q  → C1 회전교차로 시퀀스 토글 (entry → sequenceIndex 0)
-  //   Shift+Alt+W  → C2 수막현상 시퀀스 토글 (entry → sequenceIndex 0)
-  //   Ctrl+Right  → 시퀀스 다음 step
-  //   Ctrl+Left   → 시퀀스 이전 step
+  // Keyboard shortcuts (e.code 사용 — Mac Option+letter가 unicode 문자로
+  // 바뀌어도 layout-independent 하게 동작):
+  //   Alt(Option)+Q              → C1 회전교차로 시퀀스 시작
+  //   Alt(Option)+W              → C2 수막현상 시퀀스 시작
+  //   Alt(Option)+R              → 상황 초기화 (simStage=idle, sequenceIndex=0)
+  //   Ctrl+Alt+Shift+O           → 오퍼레이터 콘솔 새 탭에서 열기
+  //   Ctrl+Right                 → 시퀀스 다음 step
+  //   Ctrl+Left                  → 시퀀스 이전 step
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Scenario toggle: Shift + Alt + Q/W
-      if (e.altKey && e.shiftKey) {
-        const k = e.key.toLowerCase()
-        if (k === 'q') {
+      // Operator console: Ctrl + Alt + Shift + O — modifier-heaviest 조합부터 먼저 매치.
+      if (e.ctrlKey && e.altKey && e.shiftKey && e.code === 'KeyO') {
+        e.preventDefault()
+        window.open('/operator', '_blank', 'noopener,noreferrer')
+        return
+      }
+      // Scenario controls: Alt(Option) + Q/W/R, 다른 modifier 없이.
+      if (e.altKey && !e.ctrlKey && !e.shiftKey && !e.metaKey) {
+        if (e.code === 'KeyQ') {
           e.preventDefault()
           setSimType('roundabout')
           setSequenceIndex(0)
-          setSimStage(prev => prev === 'idle' ? 'attempting' : 'idle')
+          setSimStage('attempting')
           return
         }
-        if (k === 'w') {
+        if (e.code === 'KeyW') {
           e.preventDefault()
           setSimType('aquaplaning')
           setSequenceIndex(0)
-          setSimStage(prev => prev === 'idle' ? 'aquaplaning_active' : 'idle')
+          setSimStage('aquaplaning_active')
+          return
+        }
+        if (e.code === 'KeyR') {
+          e.preventDefault()
+          setSimStage('idle')
+          setSequenceIndex(0)
           return
         }
       }
@@ -221,6 +238,28 @@ function VehicleHMI() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [simType, simStage])
+
+  // Per-sequence voice narration. Each Ctrl+←/→ that changes sequenceIndex,
+  // or a Shift+Alt+Q/W that enters a scenario, makes the autopilot speak the
+  // matching AutopilotStatus + zoom-in + zoom-out aloud. Voice-only — no chat
+  // bubble is created. Going back to idle stops any in-flight utterance.
+  useEffect(() => {
+    if (simStage === 'idle') {
+      stopSpeaking()
+      return
+    }
+    if (!TTS_KEY) {
+      console.warn('[tts] VITE_GOOGLE_TTS_API_KEY 미설정 — 시퀀스 음성을 재생할 수 없습니다.')
+      return
+    }
+    const seq = SEQUENCES[simType]
+    const step = seq?.[Math.min(sequenceIndex, seq?.length - 1 ?? 0)]
+    if (!step) return
+    const statusText = STATUS_VARIANTS[step.status]?.text ?? ''
+    const utterance = [statusText, step.hero, step.sub].filter(Boolean).join(' ')
+    if (!utterance) return
+    speakText(utterance, TTS_KEY).catch((err) => console.warn('[tts]', err))
+  }, [sequenceIndex, simType, simStage])
 
   // Dynamic speed fluctuation
   useEffect(() => {
@@ -344,13 +383,18 @@ function VehicleHMI() {
                   • 외부 컨테이너 opacity 0.71. (스택 합성 → 약 0.39α 의 부드러운 글로우)
                   컨테이너는 canvas shift 따라 가로 축소(1342→912) + 중앙 재정렬.
                   Status 색 전환 시 cross-fade. 일렁임은 외부 컨테이너 opacity 호흡. */}
+              {/* ── Top color bloom (Figma 311:6517) ──
+                  단일 radial gradient 한 장으로 부드러운 elliptical 블롭.
+                  Container 자체에 직사각 background 없음 → box edge 발생 X.
+                  좌우로 길쭉한 ellipse가 위쪽에 살짝 잠긴 채로 깔려서
+                  자연스럽게 아래로 fade. canvas shift 시 가로 축소 + 중앙 재정렬. */}
               <motion.div
-                className="absolute pointer-events-none overflow-hidden"
+                className="absolute pointer-events-none"
                 animate={{
-                  left: isShifted ? 196.5 : 289,
-                  width: isShifted ? 912 : 1342,
-                  opacity: [0.64, 0.78, 0.7, 0.71],
-                  scaleY: [0.97, 1.02, 0.99, 1.0],
+                  left: isShifted ? 0 : 0,
+                  width: isShifted ? 1305 : 1920,
+                  opacity: [0.78, 0.96, 0.84, 0.88],
+                  scaleY: [0.97, 1.03, 0.99, 1.0],
                 }}
                 transition={{
                   left: { duration: 0.36, ease: [0.16, 1, 0.3, 1] },
@@ -358,7 +402,7 @@ function VehicleHMI() {
                   opacity: { duration: 5.2, repeat: Infinity, ease: 'easeInOut' },
                   scaleY: { duration: 6.6, repeat: Infinity, ease: 'easeInOut' },
                 }}
-                style={{ top: 79, height: 180, transformOrigin: 'top center' }}
+                style={{ top: 79, height: 260, transformOrigin: 'top center' }}
               >
                 <AnimatePresence mode="popLayout">
                   <motion.div
@@ -368,29 +412,12 @@ function VehicleHMI() {
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.6, ease: 'easeInOut' }}
                     className="absolute inset-0"
-                  >
-                    {/* Layer A — vertical linear (Figma 311:6521) */}
-                    <div
-                      className="absolute inset-0"
-                      style={{
-                        background: `linear-gradient(to bottom, ${status.color} 0%, ${status.color}66 60%, ${status.color}00 100%)`,
-                        opacity: 0.55,
-                      }}
-                    />
-                    {/* Layer B — radial bloom (Figma 311:6574) */}
-                    <div
-                      className="absolute"
-                      style={{
-                        top: -10,
-                        left: 0,
-                        right: 0,
-                        height: 192,
-                        background: `radial-gradient(ellipse 672px 115px at 50% 25%, ${status.color}CC 0%, ${status.color}00 65%)`,
-                        mixBlendMode: 'screen',
-                        opacity: 0.553,
-                      }}
-                    />
-                  </motion.div>
+                    style={{
+                      background: `
+                        radial-gradient(ellipse 38% 70% at 50% -5%, ${status.color}E6 0%, ${status.color}80 25%, ${status.color}40 45%, ${status.color}1A 65%, ${status.color}00 85%)
+                      `,
+                    }}
+                  />
                 </AnimatePresence>
               </motion.div>
 

@@ -43,34 +43,55 @@ const STATUS_VARIANTS = {
 
 // ── VLA scenario sequences (출처: sequence.md) ───────────────────
 // 시나리오 활성 시 Ctrl+Left/Right 로 step 이동.
-// 각 step: { status (pill variant), hero (zoom-in 텍스트), sub (zoom-out 텍스트 or null) }
+// 각 step: {
+//   status   — pill variant 키
+//   hero     — XAI zoom-in 텍스트
+//   sub      — XAI zoom-out 텍스트 (없으면 null)
+//   judgment — 주행 판단 과정 패널(Figma 311:7163) 로그 라인.
+//              시퀀스 진행 시(처음 방문하는 step 한정) 누적 append.
+// }
 const SEQUENCES = {
   roundabout: [
-    { status: 'normal',      hero: '목적지까지 안전하게 주행 중입니다.', sub: null },                                                    // C1-1
-    { status: 'errored',     hero: '회전교차로 진입 간격 확보에 어려움을 겪고 있습니다.',  sub: '안전 간격을 만들면 진입합니다.' },          // C1-2
-    { status: 'normal',      hero: '목적지까지 안전하게 주행 중입니다.', sub: null },                                                    // C1-3
-    { status: 'errored',     hero: '비정상적인 반복 회전이 감지되었습니다.',           sub: '2차로 진출에 실패해 같은 구간을 다시 주행합니다.' }, // C1-4
-    { status: 'progressing', hero: '차선 변경에 필요한 간격 기준이 너무 보수적입니다.', sub: '간격이 확보되면 차선 변경을 시도합니다.' },   // C1-5
-    { status: 'resolving',   hero: '2차로 차선 변경을 시도합니다.',                  sub: '잠시 정차 후 진입하겠습니다.' },               // C1-6
-    { status: 'normal',      hero: '목적지까지 안전하게 주행 중입니다.', sub: null },                                                    // C1-7
-    { status: 'errored',     hero: '진출 지점을 바로 빠져나가지 못해 한 바퀴 더 회전합니다.', sub: '다음 바퀴에 진출합니다.' },             // C1-8
-    { status: 'normal',      hero: '목적지까지 안전하게 주행 중입니다.', sub: null },                                                    // C1-9
+    { status: 'normal',      hero: '목적지까지 안전하게 주행 중입니다.',                                       sub: null,                                                              judgment: '회전교차로 입구 도착 · 진입 간격 탐색' }, // C1-1
+    { status: 'errored',     hero: '회전교차로 진입 간격 확보에 어려움을 겪고 있습니다.',                       sub: '안전 간격을 만들면 진입합니다.',                                  judgment: '입구 진입 간격 확보 어려움' },             // C1-2
+    { status: 'normal',      hero: '목적지까지 안전하게 주행 중입니다.',                                       sub: null,                                                              judgment: '회전교차로 진입 성공' },                   // C1-3
+    { status: 'errored',     hero: '비정상적인 반복 회전이 감지되었습니다.',                                   sub: '2차로 진출에 실패해 같은 구간을 다시 주행합니다.',                  judgment: '1바퀴 후 같은 구간 재회전' },              // C1-4
+    { status: 'progressing', hero: '차선 변경에 필요한 간격 기준이 너무 보수적입니다.',                         sub: '간격이 확보되면 차선 변경을 시도합니다.',                          judgment: '2·3바퀴 같은 이유로 반복 회전' },           // C1-5
+    { status: 'resolving',   hero: '2차로 차선 변경을 시도합니다.',                                            sub: '잠시 정차 후 진입하겠습니다.',                                    judgment: '2차로 강제 진입 시도' },                   // C1-6
+    { status: 'normal',      hero: '목적지까지 안전하게 주행 중입니다.',                                       sub: null,                                                              judgment: '2차로(바깥) 진입 성공' },                  // C1-7
+    { status: 'errored',     hero: '진출 지점을 바로 빠져나가지 못해 한 바퀴 더 회전합니다.',                   sub: '다음 바퀴에 진출합니다.',                                          judgment: '2차로에서 바로 진출 실패' },               // C1-8
+    { status: 'normal',      hero: '목적지까지 안전하게 주행 중입니다.',                                       sub: null,                                                              judgment: '진출 성공 · 정상 복귀' },                  // C1-9
   ],
   aquaplaning: [
-    { status: 'normal',      hero: '목적지까지 안전하게 주행 중입니다.', sub: null },                                                    // C2-1
-    { status: 'errored',     hero: '차량이 순간적으로 크게 요동쳤습니다.',     sub: '타이어 접지력이 급격히 떨어져 미끄럼이 발생했습니다.' },// C2-2
-    { status: 'progressing', hero: '노면의 물웅덩이를 미리 감지하지 못했습니다.', sub: '이로 인해 수막현상이 발생했습니다.' },             // C2-3
-    { status: 'resolving',   hero: '재발 방지를 위해 속도를 낮춰 서행합니다.',   sub: '약 N초 후 정상 마찰 상태로 복귀할 예정입니다.' },    // C2-4
-    { status: 'normal',      hero: '목적지까지 안전하게 주행 중입니다.', sub: null },                                                    // C2-5
-    { status: 'errored',     hero: '다시 차량이 요동쳤습니다.',                sub: '노면 접지력 저하가 원인입니다.' },                    // C2-6
-    { status: 'progressing', hero: '오르막 종단 물웅덩이를 파악하지 못했습니다.',  sub: '수막현상 방지를 위해 보수적으로 주행합니다.' },     // C2-7
-    { status: 'resolving',   hero: '지형 경사까지 고려해 더 일찍 감속합니다.',     sub: '도착 예정 시간에는 큰 차이가 없습니다.' },          // C2-8
-    { status: 'normal',      hero: '목적지까지 안전하게 주행 중입니다.', sub: null },                                                    // C2-9
-    { status: 'errored',     hero: '내리막 구간에서 차량이 크게 흔들렸습니다.',     sub: '노면 접지력을 잃었습니다.' },                     // C2-10
-    { status: 'progressing', hero: '센서 시야에 물웅덩이가 파악되지 않았습니다.',   sub: '내리막 가속이 더해져 요동이 커졌습니다.' },        // C2-11
-    { status: 'resolving',   hero: '더이상 수막현상이 발생하지 않도록 주행 속도를 낮춥니다.', sub: '규정속도의 40%인 25km/h로 속도를 유지합니다.' }, // C2-12
-    { status: 'normal',      hero: '목적지까지 안전하게 주행 중입니다.', sub: null },                                                    // C2-13
+    { status: 'normal',      hero: '목적지까지 안전하게 주행 중입니다.',                                       sub: null,                                                              judgment: '평지 구간 정상 주행' },                    // C2-1
+    { status: 'errored',     hero: '차량이 순간적으로 크게 요동쳤습니다.',                                     sub: '타이어 접지력이 급격히 떨어져 미끄럼이 발생했습니다.',              judgment: '접지력 급감 · 미끄럼 감지' },              // C2-2
+    { status: 'progressing', hero: '노면의 물웅덩이를 미리 감지하지 못했습니다.',                                sub: '이로 인해 수막현상이 발생했습니다.',                              judgment: '수막현상 원인 분석' },                     // C2-3
+    { status: 'resolving',   hero: '재발 방지를 위해 속도를 낮춰 서행합니다.',                                 sub: '약 N초 후 정상 마찰 상태로 복귀할 예정입니다.',                    judgment: '평지 감속 · 서행 진입' },                   // C2-4
+    { status: 'normal',      hero: '목적지까지 안전하게 주행 중입니다.',                                       sub: null,                                                              judgment: '평지 정상 마찰 복귀' },                    // C2-5
+    { status: 'errored',     hero: '다시 차량이 요동쳤습니다.',                                                sub: '노면 접지력 저하가 원인입니다.',                                  judgment: '오르막 요동 재감지' },                     // C2-6
+    { status: 'progressing', hero: '오르막 종단 물웅덩이를 파악하지 못했습니다.',                                sub: '수막현상 방지를 위해 보수적으로 주행합니다.',                      judgment: '오르막 종단 물웅덩이 미감지' },             // C2-7
+    { status: 'resolving',   hero: '지형 경사까지 고려해 더 일찍 감속합니다.',                                  sub: '도착 예정 시간에는 큰 차이가 없습니다.',                          judgment: '경사 고려 조기 감속' },                     // C2-8
+    { status: 'normal',      hero: '목적지까지 안전하게 주행 중입니다.',                                       sub: null,                                                              judgment: '오르막 정상 마찰 복귀' },                   // C2-9
+    { status: 'errored',     hero: '내리막 구간에서 차량이 크게 흔들렸습니다.',                                 sub: '노면 접지력을 잃었습니다.',                                        judgment: '내리막 요동 감지' },                       // C2-10
+    { status: 'progressing', hero: '센서 시야에 물웅덩이가 파악되지 않았습니다.',                                sub: '내리막 가속이 더해져 요동이 커졌습니다.',                          judgment: '센서 사각 + 내리막 가속' },                 // C2-11
+    { status: 'resolving',   hero: '더이상 수막현상이 발생하지 않도록 주행 속도를 낮춥니다.',                    sub: '규정속도의 40%인 25km/h로 속도를 유지합니다.',                    judgment: '25km/h 보수 주행 유지' },                    // C2-12
+    { status: 'normal',      hero: '목적지까지 안전하게 주행 중입니다.',                                       sub: null,                                                              judgment: '내리막 정상 마찰 복귀' },                   // C2-13
   ],
+}
+
+// 주행 판단 과정 패널(Figma 311:7194 등)에서 보여줄
+// status 별 라벨 + dot 색.  STATUS_VARIANTS의 pill 텍스트와는 다른 짧은 형태.
+const JUDGMENT_LABELS = {
+  normal:      { label: '정상 주행중',    color: '#34C759' },
+  errored:     { label: '오류 감지',      color: '#FF3B30' },
+  progressing: { label: '오류 원인 파악', color: '#FF9500' },
+  resolving:   { label: '오류 해결 중',   color: '#FFCC00' },
+}
+
+const fmtJudgmentTime = (d) => {
+  const h = String(d.getHours()).padStart(2, '0')
+  const m = String(d.getMinutes()).padStart(2, '0')
+  return `${h}:${m}`
 }
 
 function VehicleHMI() {
@@ -93,6 +114,16 @@ function VehicleHMI() {
   const [currentTime, setCurrentTime] = useState(new Date())
   const [isControlPanelOpen, setIsControlPanelOpen] = useState(false)
   const [navInitialView, setNavInitialView] = useState(null) // 'search' when opened from greeting
+
+  // ── 주행 판단 과정 패널 (Figma 311:7163) ─────────────────────
+  // FAB 토글로 열림. 시퀀스 step 처음 방문 시 누적 append, Alt+R 로 초기화.
+  // maxVisitedIdxRef = 현재 시나리오에서 도달한 최대 sequenceIndex.
+  //   advance forward 시에만 push (Ctrl+Left 로 뒤로 갔다 다시 forward 가도
+  //   같은 step 중복 추가되지 않음).
+  const [isJudgmentOpen, setIsJudgmentOpen] = useState(false)
+  const [judgmentLog, setJudgmentLog] = useState([])
+  const maxVisitedIdxRef = useRef(-1)
+  const judgmentEndRef = useRef(null)
 
   // ── Keyboard chat (Gemini) ──────────────────────────────────
   // Searchbox doubles as a typing input. Sending fires getGeminiResponse,
@@ -202,6 +233,8 @@ function VehicleHMI() {
       if (e.altKey && !e.ctrlKey && !e.shiftKey && !e.metaKey) {
         if (e.code === 'KeyQ') {
           e.preventDefault()
+          maxVisitedIdxRef.current = -1
+          setJudgmentLog([])
           setSimType('roundabout')
           setSequenceIndex(0)
           setSimStage('attempting')
@@ -209,6 +242,8 @@ function VehicleHMI() {
         }
         if (e.code === 'KeyW') {
           e.preventDefault()
+          maxVisitedIdxRef.current = -1
+          setJudgmentLog([])
           setSimType('aquaplaning')
           setSequenceIndex(0)
           setSimStage('aquaplaning_active')
@@ -216,6 +251,8 @@ function VehicleHMI() {
         }
         if (e.code === 'KeyR') {
           e.preventDefault()
+          maxVisitedIdxRef.current = -1
+          setJudgmentLog([])
           setSimStage('idle')
           setSequenceIndex(0)
           return
@@ -237,6 +274,31 @@ function VehicleHMI() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [simType, simStage])
+
+  // 시퀀스 step 처음 방문 시 주행 판단 과정 패널에 한 줄 append.
+  // (Ctrl+Left 로 뒤로 갔다가 forward 다시 와도 같은 step 중복 추가 안 됨).
+  useEffect(() => {
+    if (simStage === 'idle') return
+    if (sequenceIndex <= maxVisitedIdxRef.current) return
+    const seq = SEQUENCES[simType]
+    const step = seq?.[sequenceIndex]
+    if (!step?.judgment) return
+    maxVisitedIdxRef.current = sequenceIndex
+    setJudgmentLog((prev) => [
+      ...prev,
+      {
+        id: `${simType}-${sequenceIndex}-${prev.length}`,
+        status: step.status,
+        judgment: step.judgment,
+        time: new Date(),
+      },
+    ])
+  }, [sequenceIndex, simType, simStage])
+
+  // 새 entry 추가 시 패널 하단으로 자동 스크롤.
+  useEffect(() => {
+    judgmentEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+  }, [judgmentLog.length])
 
   // Dynamic speed fluctuation
   useEffect(() => {
@@ -311,14 +373,15 @@ function VehicleHMI() {
             패널은 화면 밖에서 시작해 우측 615 영역으로만 진입 → 겹침 없음. */}
         <motion.button
           animate={{
-            left: (activeApp || messages.length > 0 || isAITyping) ? 'calc(40% + 326px - 28px)' : 'calc(80% + 156px - 28px)',
+            left: (activeApp || messages.length > 0 || isAITyping || isJudgmentOpen) ? 'calc(40% + 326px - 28px)' : 'calc(80% + 156px - 28px)',
           }}
           transition={{ duration: 0.36, ease: [0.16, 1, 0.3, 1] }}
           whileTap={{ scale: 0.94 }}
           whileHover={{ scale: 1.04 }}
+          onClick={() => setIsJudgmentOpen((v) => !v)}
           className="absolute bg-transparent border-0 p-0 cursor-pointer pointer-events-auto"
           style={{ top: 122, width: 187, height: 187, zIndex: 2 }}
-          aria-label="차량 경고"
+          aria-label="주행 판단 과정 열기"
         >
           <img src={iconCarAlert} alt="" className="block w-full h-full pointer-events-none select-none" />
         </motion.button>
@@ -328,8 +391,8 @@ function VehicleHMI() {
           // 채팅이 한 번이라도 발생하면 layout이 좌측으로 shift — 앱 열린 것과
           // 동일한 1305 캔버스 + 우측 615 영역에 말풍선 패널 표시.
           const isChatActive = messages.length > 0 || isAITyping
-          // 둘 중 하나라도 활성 → 좌측 1305 영역 사용.
-          const isShifted = isAppOpen || isChatActive
+          // 앱/채팅/주행판단 패널 중 하나라도 활성 → 좌측 1305 영역 사용.
+          const isShifted = isAppOpen || isChatActive || isJudgmentOpen
           const isScenarioActive = simStage !== 'idle'
 
           // ── Sequence-driven content (sequence.md / SEQUENCES 상수 lookup) ──
@@ -572,12 +635,191 @@ function VehicleHMI() {
           모든 시나리오 reasoning 은 메인 캔버스의 AutopilotStatus pill +
           XAI hero/sub 텍스트로 통합. */}
 
+      {/* ── 주행 판단 과정 Side Panel (Figma 311:7163) ─────────────
+          FAB 클릭으로 토글. 시퀀스 step 처음 방문 시 누적 append.
+          앱 패널이 열려있으면 양보(activeApp 우선). 채팅보다는 우선. */}
+      <AnimatePresence>
+        {!activeApp && isJudgmentOpen && (
+          <motion.div
+            key="judgment-panel"
+            initial={{ opacity: 1, x: 615 }}
+            animate={{ opacity: 1, x: 0, transition: { duration: 0.36, ease: [0.16, 1, 0.3, 1] } }}
+            exit={{ opacity: 1, x: 615, transition: { duration: 0.36, ease: [0.16, 1, 0.3, 1] } }}
+            className="absolute overflow-hidden z-[11]"
+            style={{
+              left: 1305,
+              top: 79,
+              width: 615,
+              height: 880,
+              borderRadius: 16,
+              background: '#f7f8fa',
+              border: '1px solid rgba(19, 20, 23, 0.2)',
+              boxShadow: '0px 6px 24px 0px rgba(0, 0, 0, 0.08)',
+            }}
+          >
+            <div className="flex flex-col w-full h-full">
+              {/* Header (Figma 311:7185) — back + title + 우측 small FAB icon */}
+              <div
+                className="flex items-center bg-white shrink-0"
+                style={{
+                  height: 100,
+                  borderBottom: '1.072px solid rgba(19, 20, 23, 0.08)',
+                  paddingLeft: 21,
+                  paddingRight: 24,
+                  gap: 15,
+                }}
+              >
+                <motion.button
+                  whileTap={{ scale: 0.92 }}
+                  onClick={() => setIsJudgmentOpen(false)}
+                  className="flex items-center justify-center bg-transparent border-0 cursor-pointer"
+                  style={{ width: 52, height: 60, borderRadius: 21, padding: 6 }}
+                  aria-label="주행 판단 과정 닫기"
+                >
+                  <ArrowLeft size={32} color="#343434" strokeWidth={2.2} />
+                </motion.button>
+                <span
+                  style={{
+                    fontSize: 28,
+                    fontWeight: 600,
+                    lineHeight: '51.418px',
+                    letterSpacing: '-1.07px',
+                    color: '#343434',
+                    flex: 1,
+                  }}
+                >
+                  주행 판단 과정
+                </span>
+                <img
+                  src={iconCarAlert}
+                  alt=""
+                  style={{ width: 60, height: 60, display: 'block' }}
+                />
+              </div>
+              {/* List — Figma 311:7194 .. 7275. Scrollable, scrollbar hidden. */}
+              <div
+                className="flex-1 hide-scrollbar"
+                style={{
+                  overflowY: 'auto',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
+                {judgmentLog.length === 0 ? (
+                  <div
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 40,
+                      fontSize: 22,
+                      letterSpacing: '-0.44px',
+                      color: '#a0a0a0',
+                      textAlign: 'center',
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    시나리오가 시작되면<br />주행 판단 과정이 여기에 표시됩니다.
+                  </div>
+                ) : (
+                  judgmentLog.map((entry) => {
+                    const meta = JUDGMENT_LABELS[entry.status] ?? JUDGMENT_LABELS.normal
+                    return (
+                      <motion.div
+                        key={entry.id}
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, ease: 'easeOut' }}
+                        style={{
+                          width: '100%',
+                          minHeight: 118,
+                          padding: '15px 31px',
+                          borderBottom: '1px solid rgba(19, 20, 23, 0.1)',
+                          background: 'linear-gradient(to right, #ffffff 0%, #edeef2 100%)',
+                          boxShadow: '0px 6px 6px rgba(0, 0, 0, 0.08)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'center',
+                          gap: 4,
+                          flexShrink: 0,
+                        }}
+                      >
+                        <div className="flex items-center" style={{ gap: 7 }}>
+                          <span
+                            style={{
+                              width: 18,
+                              height: 18,
+                              borderRadius: 9999,
+                              background: meta.color,
+                              flexShrink: 0,
+                              boxShadow: `0 0 6px ${meta.color}66`,
+                            }}
+                          />
+                          <span
+                            style={{
+                              fontSize: 22,
+                              fontWeight: 500,
+                              letterSpacing: '-0.44px',
+                              color: '#99a1af',
+                              lineHeight: '30.8px',
+                            }}
+                          >
+                            {meta.label}
+                          </span>
+                        </div>
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            gap: 12,
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: 26,
+                              fontWeight: 500,
+                              letterSpacing: '-1px',
+                              color: '#131417',
+                              lineHeight: '36.4px',
+                              flex: 1,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {entry.judgment}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: 22,
+                              fontWeight: 500,
+                              color: '#99a1af',
+                              lineHeight: '30.8px',
+                              flexShrink: 0,
+                            }}
+                          >
+                            {fmtJudgmentTime(entry.time)}
+                          </span>
+                        </div>
+                      </motion.div>
+                    )
+                  })
+                )}
+                <div ref={judgmentEndRef} />
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── Chat Side Panel ─────────────────────────────────────────
           검색바에 타이핑 시작하면 활성. 앱 패널과 동일한 615×880 슬롯,
           헤더 + 메시지 리스트 + 자동 스크롤. 앱 패널과 동시에 뜨지는
           않음(앱이 우선). 닫기 버튼은 messages 초기화. */}
       <AnimatePresence>
-        {!activeApp && (messages.length > 0 || isAITyping) && (
+        {!activeApp && !isJudgmentOpen && (messages.length > 0 || isAITyping) && (
           <motion.div
             key="chat-panel"
             initial={{ opacity: 1, x: 615 }}

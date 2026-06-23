@@ -2,6 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 주행 판단 과정 패널 등 scrollbar 가리기 — Firefox/IE/Edge/Chromium/Safari 모두 커버 */
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
 /* ── Design Tokens ──────────────────────────────────── */
 :root {
   --bg-primary: #f7f8fa;

@@ -6,9 +6,6 @@ import { Flame, Snowflake, Search, Menu, ArrowLeft, Send } from 'lucide-react'
 import { ExperimentProvider, useExperiment } from './context/ExperimentContext'
 import OperatorConsole from './components/OperatorConsole'
 import { getGeminiResponse } from './services/gemini'
-import { speakText, stopSpeaking } from './services/tts'
-
-const TTS_KEY = import.meta.env.VITE_GOOGLE_TTS_API_KEY
 
 // === ASSET IMPORTS ===
 // Icons
@@ -238,28 +235,6 @@ function VehicleHMI() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [simType, simStage])
-
-  // Per-sequence voice narration. Each Ctrl+←/→ that changes sequenceIndex,
-  // or a Shift+Alt+Q/W that enters a scenario, makes the autopilot speak the
-  // matching AutopilotStatus + zoom-in + zoom-out aloud. Voice-only — no chat
-  // bubble is created. Going back to idle stops any in-flight utterance.
-  useEffect(() => {
-    if (simStage === 'idle') {
-      stopSpeaking()
-      return
-    }
-    if (!TTS_KEY) {
-      console.warn('[tts] VITE_GOOGLE_TTS_API_KEY 미설정 — 시퀀스 음성을 재생할 수 없습니다.')
-      return
-    }
-    const seq = SEQUENCES[simType]
-    const step = seq?.[Math.min(sequenceIndex, seq?.length - 1 ?? 0)]
-    if (!step) return
-    const statusText = STATUS_VARIANTS[step.status]?.text ?? ''
-    const utterance = [statusText, step.hero, step.sub].filter(Boolean).join(' ')
-    if (!utterance) return
-    speakText(utterance, TTS_KEY).catch((err) => console.warn('[tts]', err))
-  }, [sequenceIndex, simType, simStage])
 
   // Dynamic speed fluctuation
   useEffect(() => {

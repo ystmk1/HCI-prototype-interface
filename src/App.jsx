@@ -32,11 +32,13 @@ import ControlPanel from './components/ControlPanel'
 
 // ── AutopilotStatus pill variants (single design, dot color + text vary) ──
 // 각 시퀀스 step의 status 키가 이 표를 lookup해서 pill 색과 텍스트를 결정.
+// sequence.md 의 이모지 색에 맞춤 (Apple system palette):
+//   🟢 normal #34C759 / 🔴 errored #FF3B30 / 🟠 progressing #FF9500 / 🟡 resolving #FFCC00
 const STATUS_VARIANTS = {
-  normal:      { text: '정상 주행 중입니다',       color: '#34c759' }, // green
-  errored:     { text: '오류가 감지되었습니다',     color: '#FFCC00' }, // yellow
-  progressing: { text: '오류 원인을 파악 중입니다', color: '#2d7cf1' }, // blue
-  resolving:   { text: '오류를 해결 중입니다',      color: '#FF9500' }, // orange
+  normal:      { text: '정상 주행 중입니다',       color: '#34C759' }, // 🟢
+  errored:     { text: '오류가 감지되었습니다',     color: '#FF3B30' }, // 🔴
+  progressing: { text: '오류 원인을 파악 중입니다', color: '#FF9500' }, // 🟠
+  resolving:   { text: '오류를 해결 중입니다',      color: '#FFCC00' }, // 🟡
 }
 
 // ── VLA scenario sequences (출처: sequence.md) ───────────────────
